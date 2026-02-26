@@ -253,13 +253,6 @@ export const ProductPage: React.FC = () => {
                 className="max-w-[85%] max-h-[85%] object-contain drop-shadow-lg transition-opacity duration-300"
               />
 
-              {/* Sale Badge */}
-              {isOnSale && (
-                <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-lg z-10">
-                  <Tag size={14} /> -{discountPercent}%
-                </div>
-              )}
-
               {/* Navigation Arrows */}
               {allImages.length > 1 && (
                 <>
@@ -445,9 +438,16 @@ export const ProductPage: React.FC = () => {
                                 />
                                 <span className="text-xs font-medium text-stone-600">{variant.valore}</span>
                                 {variant.prezzo > 0 && (
-                                  <span className="text-[10px] text-stone-400">
-                                    €{variant.prezzo_scontato ? variant.prezzo_scontato.toFixed(2) : variant.prezzo.toFixed(2)}
-                                  </span>
+                                  variant.prezzo_scontato && variant.prezzo_scontato < variant.prezzo ? (
+                                    <div className="flex flex-col items-center">
+                                      <span className="text-[10px] text-stone-400 line-through">€{variant.prezzo.toFixed(2)}</span>
+                                      <span className="text-[11px] font-bold text-red-600">€{variant.prezzo_scontato.toFixed(2)}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-stone-400">
+                                      €{variant.prezzo.toFixed(2)}
+                                    </span>
+                                  )
                                 )}
                               </button>
                             );
@@ -468,9 +468,16 @@ export const ProductPage: React.FC = () => {
                             >
                               {variant.valore || variant.nome_variante}
                               {variant.prezzo > 0 && (
-                                <span className="block text-xs mt-0.5 font-medium text-stone-400">
-                                  €{variant.prezzo_scontato ? variant.prezzo_scontato.toFixed(2) : variant.prezzo.toFixed(2)}
-                                </span>
+                                variant.prezzo_scontato && variant.prezzo_scontato < variant.prezzo ? (
+                                  <div className="flex flex-col items-center mt-0.5">
+                                    <span className="text-[10px] text-stone-400 line-through">€{variant.prezzo.toFixed(2)}</span>
+                                    <span className="text-xs font-bold text-red-600">€{variant.prezzo_scontato.toFixed(2)}</span>
+                                  </div>
+                                ) : (
+                                  <span className="block text-xs mt-0.5 font-medium text-stone-400">
+                                    €{variant.prezzo.toFixed(2)}
+                                  </span>
+                                )
                               )}
                             </button>
                           ))}

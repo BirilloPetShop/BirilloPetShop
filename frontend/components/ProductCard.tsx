@@ -107,13 +107,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
         </button>
 
-        {/* Sale Badge */}
-        {isItemOnSale && (
-          <div className="absolute top-2.5 left-2.5 z-10 bg-birillo-red text-white text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm animate-fade-in">
-            <Tag size={12} fill="currentColor" /> -{discountPercent}%
-          </div>
-        )}
-
         {/* Image */}
         <div className="relative h-48 overflow-hidden cursor-pointer bg-stone-50/50" onClick={goToProductPage}>
           {immagine ? (
