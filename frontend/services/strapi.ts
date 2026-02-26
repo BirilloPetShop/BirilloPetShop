@@ -273,7 +273,7 @@ export const fetchCategories = async (): Promise<string[]> => {
 // Albero categorie gerarchico per la sidebar (con animale)
 export const fetchCategoryTree = async (): Promise<CategoryTreeNode[]> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/categories?populate=parent,animal&pagination[limit]=100`);
+    const response = await fetch(`${STRAPI_API_URL}/categories?populate=*&pagination[limit]=100`);
     const json = await response.json();
 
     const all = json.data.map((c: any) => {
