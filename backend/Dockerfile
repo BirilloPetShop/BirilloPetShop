@@ -22,7 +22,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/favicon.png ./
-COPY --from=builder /app/config ./config
 
 EXPOSE 1337
 
