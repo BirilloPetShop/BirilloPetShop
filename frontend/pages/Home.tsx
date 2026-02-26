@@ -11,8 +11,19 @@ import {
   ArrowRight, CheckCircle, ChevronLeft, ChevronRight,
   Dog, Cat, Fish, ShoppingBag, Star, Check, MapPin,
   Phone, Mail, MessageCircle, Droplets, HeartHandshake,
-  Rabbit, Bird, Turtle, Squirrel
+  Rabbit, Bird, Turtle
 } from 'lucide-react';
+
+// Icona custom serpente (stile Lucide)
+const Snake: React.FC<{ size?: number; strokeWidth?: number; className?: string }> = ({ size = 24, strokeWidth = 2, className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M4 20c0-2.5 2-4 4-4s4 1.5 4 4" />
+    <path d="M12 20c0-3 2-5.5 5-5.5 2 0 3 1.5 3 3" />
+    <path d="M20 17.5c0-.5-.5-1-1-1" />
+    <circle cx="18" cy="6" r="1" />
+    <path d="M20 4c-1 0-2 .5-2 2s1.5 2.5 2 4c.5 1.5 0 3-2 3-3 0-4-2-7-2s-5 2-7 4" />
+  </svg>
+);
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +64,7 @@ export const Home: React.FC = () => {
     { name: 'Uccelli', desc: 'Alimenti, gabbie e accessori', icon: Bird, bg: 'bg-teal-50', border: 'border-teal-100', text: 'text-teal-600', hover: 'hover:border-teal-200 hover:shadow-lg hover:-translate-y-1', filter: 'Uccelli' },
     { name: 'Pesci', desc: 'Acquari, mangimi e accessori', icon: Fish, bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-600', hover: 'hover:border-sky-200 hover:shadow-lg hover:-translate-y-1', filter: 'Pesci' },
     { name: 'Tartarughe', desc: 'Mangimi, accessori e cure', icon: Turtle, bg: 'bg-lime-50', border: 'border-lime-100', text: 'text-lime-600', hover: 'hover:border-lime-200 hover:shadow-lg hover:-translate-y-1', filter: 'Tartarughe' },
-    { name: 'Rettili', desc: 'Terrari, alimenti e integratori', icon: Squirrel, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600', hover: 'hover:border-emerald-200 hover:shadow-lg hover:-translate-y-1', filter: 'Rettili' },
+    { name: 'Rettili', desc: 'Terrari, alimenti e integratori', icon: Snake, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600', hover: 'hover:border-emerald-200 hover:shadow-lg hover:-translate-y-1', filter: 'Rettili' },
   ];
 
 

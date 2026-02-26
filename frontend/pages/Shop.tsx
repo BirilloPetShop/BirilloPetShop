@@ -8,14 +8,25 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, X, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
   SlidersHorizontal, ArrowUpDown, Home, LayoutGrid, Grid3x3, Grid2x2,
-  PackageSearch, Tag, Dog, Cat, Rabbit, Bird, Fish, Turtle, Squirrel,
+  PackageSearch, Tag, Dog, Cat, Rabbit, Bird, Fish, Turtle,
   type LucideIcon
 } from 'lucide-react';
 
+// Icona custom serpente (stile Lucide)
+const Snake: React.FC<{ size?: number; strokeWidth?: number; className?: string }> = ({ size = 24, strokeWidth = 2, className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M4 20c0-2.5 2-4 4-4s4 1.5 4 4" />
+    <path d="M12 20c0-3 2-5.5 5-5.5 2 0 3 1.5 3 3" />
+    <path d="M20 17.5c0-.5-.5-1-1-1" />
+    <circle cx="18" cy="6" r="1" />
+    <path d="M20 4c-1 0-2 .5-2 2s1.5 2.5 2 4c.5 1.5 0 3-2 3-3 0-4-2-7-2s-5 2-7 4" />
+  </svg>
+);
+
 // Mappa icone Lucide per animali
-const animalIconMap: Record<string, LucideIcon> = {
+const animalIconMap: Record<string, React.FC<any>> = {
   'Dog': Dog, 'Cat': Cat, 'Rabbit': Rabbit, 'Bird': Bird,
-  'Fish': Fish, 'Turtle': Turtle, 'Squirrel': Squirrel,
+  'Fish': Fish, 'Turtle': Turtle, 'Snake': Snake,
 };
 
 // ─── Constants ───
