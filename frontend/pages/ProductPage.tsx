@@ -298,13 +298,13 @@ export const ProductPage: React.FC = () => {
 
             {/* Thumbnails (desktop only) */}
             {allImages.length > 1 && (
-              <div className="hidden lg:flex gap-3 overflow-x-auto scrollbar-hide">
+              <div className="hidden lg:flex gap-3 overflow-x-auto scrollbar-hide p-1">
                 {allImages.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setCurrentImageIndex(idx)}
                     className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all bg-stone-50 ${idx === currentImageIndex
-                      ? 'border-nature-500 shadow-md scale-105'
+                      ? 'border-nature-500 shadow-md'
                       : 'border-stone-200 hover:border-stone-300 opacity-70 hover:opacity-100'
                     }`}
                   >
