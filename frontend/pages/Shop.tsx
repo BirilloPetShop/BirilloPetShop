@@ -321,26 +321,26 @@ const ShopContent: React.FC = () => {
       )}
       <div className="border-b border-stone-100" />
 
-      {/* CATEGORIE (filtrate per animale selezionato) */}
-      <button onClick={() => toggleSection('categorie')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
-        Categorie {activeAnimal !== 'All' && <span className="text-nature-500 normal-case text-[10px] ml-1">({activeAnimal})</span>}
-        <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.categorie ? '' : 'rotate-180'}`} />
-      </button>
-      {!collapsedSections.categorie && (
-        <div className="space-y-0.5 pb-4">
-          <SidebarFilterItem label="Tutte le categorie" isActive={activeCategory === 'All'} onClick={() => setActiveCategory('All')} />
-          {filteredCategoryTree.length > 0 ? (
-            renderCategoryTree(filteredCategoryTree)
-          ) : activeAnimal !== 'All' ? (
-            <p className="text-xs text-stone-400 px-3 py-2 italic">Nessuna categoria per {activeAnimal}</p>
-          ) : (
-            categoriesList.map(cat => (
-              <SidebarFilterItem key={cat} label={cat} isActive={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
-            ))
+      {/* CATEGORIE (visibili SOLO dopo aver selezionato un animale) */}
+      {activeAnimal !== 'All' && (
+        <>
+          <button onClick={() => toggleSection('categorie')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
+            Categorie <span className="text-nature-500 normal-case text-[10px] ml-1">({activeAnimal})</span>
+            <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.categorie ? '' : 'rotate-180'}`} />
+          </button>
+          {!collapsedSections.categorie && (
+            <div className="space-y-0.5 pb-4">
+              <SidebarFilterItem label="Tutte le categorie" isActive={activeCategory === 'All'} onClick={() => setActiveCategory('All')} />
+              {filteredCategoryTree.length > 0 ? (
+                renderCategoryTree(filteredCategoryTree)
+              ) : (
+                <p className="text-xs text-stone-400 px-3 py-2 italic">Nessuna categoria per {activeAnimal}</p>
+              )}
+            </div>
           )}
-        </div>
+          <div className="border-b border-stone-100" />
+        </>
       )}
-      <div className="border-b border-stone-100" />
 
       {/* Marca */}
       {brandsList.length > 0 && (
