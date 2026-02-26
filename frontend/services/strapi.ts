@@ -4,6 +4,16 @@ import { STRAPI_API_URL } from '../constants';
 
 const STRAPI_BASE = import.meta.env.VITE_API_URL || 'http://localhost:1337';
 
+// Deep populate: populate=* non raggiunge i media dentro i componenti (es. varianti.immagine)
+const PRODUCT_POPULATE = [
+  'populate[immagine]=true',
+  'populate[galleria]=true',
+  'populate[category][populate]=*',
+  'populate[animals]=true',
+  'populate[brand][populate][logo]=true',
+  'populate[varianti][populate][immagine]=true',
+].join('&');
+
 // Helper to get full image URL
 const getImageUrl = (imageData: any) => {
   if (!imageData) return 'https://placehold.co/400x400?text=No+Image';
@@ -180,7 +190,7 @@ const mapStrapiProduct = (item: any): Product => {
 
 export const fetchProducts = async (): Promise<Product[]> => {
   try {
-    const query = `${STRAPI_API_URL}/products?populate=*`;
+    const query = `${STRAPI_API_URL}/products?${PRODUCT_POPULATE}`;
     console.log("Tentativo connessione Strapi:", query);
     const response = await fetch(query);
 
@@ -207,7 +217,7 @@ export const fetchProducts = async (): Promise<Product[]> => {
 
 export const fetchProductById = async (id: number): Promise<Product | null> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/products?filters[id][$eq]=${id}&populate=*`);
+    const response = await fetch(`${STRAPI_API_URL}/products?filters[id][$eq]=${id}&${PRODUCT_POPULATE}`);
     if (!response.ok) {
       throw new Error(`Errore fetch prodotto ${id}: ${response.status}`);
     }
@@ -222,7 +232,7 @@ export const fetchProductById = async (id: number): Promise<Product | null> => {
 
 export const fetchServices = async (): Promise<Product[]> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/products?populate=*&filters[is_service][$eq]=true`);
+    const response = await fetch(`${STRAPI_API_URL}/products?${PRODUCT_POPULATE}&filters[is_service][$eq]=true`);
     if (!response.ok) throw new Error('Errore fetch servizi');
     const json = await response.json();
     if (!json.data || json.data.length === 0) return [];
@@ -235,7 +245,7 @@ export const fetchServices = async (): Promise<Product[]> => {
 
 export const fetchFeaturedProducts = async (): Promise<Product[]> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/products?populate=*&filters[is_featured][$eq]=true&pagination[limit]=8`);
+    const response = await fetch(`${STRAPI_API_URL}/products?${PRODUCT_POPULATE}&filters[is_featured][$eq]=true&pagination[limit]=8`);
     if (!response.ok) throw new Error('Network response was not ok');
     const json = await response.json();
     if (!json.data || json.data.length === 0) return [];
@@ -249,7 +259,7 @@ export const fetchFeaturedProducts = async (): Promise<Product[]> => {
 export const searchProductsPreview = async (query: string): Promise<Product[]> => {
   try {
     if (!query) return [];
-    const response = await fetch(`${STRAPI_API_URL}/products?filters[nome][$containsi]=${encodeURIComponent(query)}&pagination[limit]=5&populate=*`);
+    const response = await fetch(`${STRAPI_API_URL}/products?filters[nome][$containsi]=${encodeURIComponent(query)}&pagination[limit]=5&${PRODUCT_POPULATE}`);
     if (!response.ok) throw new Error('Search failed');
     const json = await response.json();
     return json.data.map(mapStrapiProduct).filter((p: any) => p !== null);

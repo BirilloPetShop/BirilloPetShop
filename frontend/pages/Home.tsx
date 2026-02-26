@@ -14,14 +14,20 @@ import {
   Rabbit, Bird, Turtle
 } from 'lucide-react';
 
-// Icona custom serpente (stile Lucide)
+// Icona custom serpente (serpente semplice stile Lucide)
 const Snake: React.FC<{ size?: number; strokeWidth?: number; className?: string }> = ({ size = 24, strokeWidth = 2, className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M4 20c0-2.5 2-4 4-4s4 1.5 4 4" />
-    <path d="M12 20c0-3 2-5.5 5-5.5 2 0 3 1.5 3 3" />
-    <path d="M20 17.5c0-.5-.5-1-1-1" />
-    <circle cx="18" cy="6" r="1" />
-    <path d="M20 4c-1 0-2 .5-2 2s1.5 2.5 2 4c.5 1.5 0 3-2 3-3 0-4-2-7-2s-5 2-7 4" />
+    {/* Corpo serpente ondulato */}
+    <path d="M3.5 20C5.5 20 6 17 9 17s3.5 3 6.5 3" />
+    <path d="M9 17c0-4 1-7 2-10" />
+    {/* Testa ovale */}
+    <ellipse cx="12.5" cy="5.5" rx="2.5" ry="2" />
+    {/* Occhio */}
+    <circle cx="13.5" cy="5.2" r="0.6" fill="currentColor" stroke="none" />
+    {/* Lingua biforcuta */}
+    <path d="M15 6l2 0" />
+    <path d="M17 6l1.2-1.2" />
+    <path d="M17 6l1.2 1.2" />
   </svg>
 );
 
