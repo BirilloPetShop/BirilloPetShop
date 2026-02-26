@@ -18,9 +18,9 @@ ENV NODE_OPTIONS="--max-old-space-size=400"
 ENV NODE_ENV=production
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/dist/config ./config
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/favicon.png ./
 
