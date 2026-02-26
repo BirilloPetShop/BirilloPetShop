@@ -61,13 +61,21 @@
     },
     "category": {
       "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::category.category"
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "products"
     },
-    "animal": {
+    "animals": {
       "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::animal.animal"
+      "relation": "manyToMany",
+      "target": "api::animal.animal",
+      "inversedBy": "products"
+    },
+    "brand": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::brand.brand",
+      "inversedBy": "products"
     },
     "varianti": {
       "type": "component",

@@ -8,7 +8,7 @@ import { fetchProductById } from '../services/strapi';
 import { useCart } from '../services/cartContext';
 import { useWishlist } from '../services/wishlistContext';
 import { useToast } from '../services/toastContext';
-import { Product, ProductVariant } from '../types';
+import { Product, ProductVariant, CategoryData, VariantType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import {
   ChevronLeft, ChevronRight, ChevronRight as ChevronRightSmall,
@@ -195,10 +195,40 @@ export const ProductPage: React.FC = () => {
           <button onClick={() => navigate('/shop')} className="hover:text-nature-600 transition-colors flex-shrink-0">
             Negozio
           </button>
-          <ChevronRightSmall size={14} className="flex-shrink-0" />
-          <button onClick={() => navigate('/shop')} className="hover:text-nature-600 transition-colors flex-shrink-0">
-            {attr.categoria}
-          </button>
+          {(() => {
+            // Build hierarchical breadcrumb from categoriaObj
+            const chain: CategoryData[] = [];
+            let current: CategoryData | null | undefined = attr.categoriaObj;
+            while (current) {
+              chain.unshift(current);
+              current = current.parent;
+            }
+            if (chain.length > 0) {
+              return chain.map((cat, idx) => (
+                <React.Fragment key={cat.id}>
+                  <ChevronRightSmall size={14} className="flex-shrink-0" />
+                  {idx < chain.length - 1 ? (
+                    <button onClick={() => navigate(`/shop?categoria=${encodeURIComponent(cat.nome)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
+                      {cat.nome}
+                    </button>
+                  ) : (
+                    <button onClick={() => navigate(`/shop?categoria=${encodeURIComponent(cat.nome)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
+                      {cat.nome}
+                    </button>
+                  )}
+                </React.Fragment>
+              ));
+            }
+            // Fallback: use flat categoria string
+            return (
+              <>
+                <ChevronRightSmall size={14} className="flex-shrink-0" />
+                <button onClick={() => navigate(`/shop?categoria=${encodeURIComponent(attr.categoria)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
+                  {attr.categoria}
+                </button>
+              </>
+            );
+          })()}
           <ChevronRightSmall size={14} className="flex-shrink-0" />
           <span className="text-stone-700 font-semibold truncate max-w-[180px] sm:max-w-none">
             {attr.nome}
@@ -294,11 +324,15 @@ export const ProductPage: React.FC = () => {
               <span className="text-xs font-bold text-nature-600 uppercase tracking-wider bg-nature-50 px-2.5 py-1 rounded-lg">
                 {attr.categoria}
               </span>
-              {attr.animale && attr.animale !== 'Tutti' && (
-                <span className="text-xs font-bold text-amber-600 uppercase tracking-wider bg-amber-50 px-2.5 py-1 rounded-lg">
-                  {attr.animale}
-                </span>
-              )}
+              {attr.animali && attr.animali.filter(a => a !== 'Tutti').map(animal => (
+                <button
+                  key={animal}
+                  onClick={() => navigate(`/shop?animale=${encodeURIComponent(animal)}`)}
+                  className="text-xs font-bold text-amber-600 uppercase tracking-wider bg-amber-50 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  {animal}
+                </button>
+              ))}
               {isService && (
                 <span className="text-xs font-bold text-ocean-700 uppercase tracking-wider bg-ocean-50 px-2.5 py-1 rounded-lg">
                   Servizio
@@ -307,9 +341,23 @@ export const ProductPage: React.FC = () => {
             </div>
 
             {/* Product Name */}
-            <h1 className="font-display text-2xl lg:text-4xl font-bold text-stone-900 leading-tight mb-4">
+            <h1 className="font-display text-2xl lg:text-4xl font-bold text-stone-900 leading-tight mb-1">
               {attr.nome}
             </h1>
+
+            {/* Brand (clickable) */}
+            {attr.marca && (
+              <button
+                onClick={() => navigate(`/shop?marca=${encodeURIComponent(attr.marca!)}`)}
+                className="inline-flex items-center gap-2 text-sm text-stone-500 hover:text-nature-600 transition-colors mb-4 group"
+              >
+                {attr.marcaObj?.logo && (
+                  <img src={attr.marcaObj.logo} alt={attr.marca} className="w-5 h-5 object-contain rounded" />
+                )}
+                <span className="group-hover:underline">{attr.marca}</span>
+              </button>
+            )}
+            {!attr.marca && <div className="mb-4" />}
 
             {/* Price Display */}
             <div className="mb-5">
@@ -340,29 +388,97 @@ export const ProductPage: React.FC = () => {
               )}
             </div>
 
-            {/* Variant Selector */}
+            {/* Variant Selector — grouped by tipo_variante */}
             {attr.varianti && attr.varianti.length > 0 && (
-              <div className="mb-5 p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">Scegli Formato</h3>
-                <div className="flex flex-wrap gap-2.5">
-                  {attr.varianti.map(variant => (
-                    <button
-                      key={variant.id}
-                      onClick={() => { setSelectedVariant(variant); setQuantity(1); }}
-                      className={`px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all min-w-[80px] text-center ${selectedVariant?.id === variant.id
-                        ? 'border-nature-500 bg-white text-nature-700 shadow-md scale-105'
-                        : 'border-transparent bg-white text-stone-600 hover:border-stone-200'
-                      }`}
-                    >
-                      {variant.nome_variante}
-                      {variant.prezzo > 0 && (
-                        <span className="block text-xs mt-0.5 font-medium text-stone-400">
-                          €{variant.prezzo_scontato ? variant.prezzo_scontato.toFixed(2) : variant.prezzo.toFixed(2)}
-                        </span>
+              <div className="mb-5 space-y-4">
+                {(() => {
+                  // Group variants by type
+                  const groups = new Map<string, ProductVariant[]>();
+                  attr.varianti!.forEach(v => {
+                    const type = v.tipo_variante || 'Peso';
+                    if (!groups.has(type)) groups.set(type, []);
+                    groups.get(type)!.push(v);
+                  });
+
+                  const typeLabels: Record<string, string> = {
+                    'Peso': 'Scegli Peso',
+                    'Colore': 'Scegli Colore',
+                    'Taglia': 'Scegli Taglia',
+                    'Formato': 'Scegli Formato',
+                  };
+
+                  const colorMap: Record<string, string> = {
+                    'Rosso': '#EF4444', 'Blu': '#3B82F6', 'Verde': '#22C55E',
+                    'Nero': '#1F2937', 'Bianco': '#F5F5F4', 'Giallo': '#EAB308',
+                    'Rosa': '#EC4899', 'Arancione': '#F97316', 'Viola': '#8B5CF6',
+                    'Marrone': '#92400E', 'Grigio': '#9CA3AF', 'Azzurro': '#38BDF8',
+                    'Beige': '#D4A574', 'Crema': '#FFFDD0',
+                  };
+
+                  return Array.from(groups.entries()).map(([type, variants]) => (
+                    <div key={type} className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                      <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+                        {typeLabels[type] || `Scegli ${type}`}
+                      </h3>
+
+                      {type === 'Colore' ? (
+                        /* Color swatches */
+                        <div className="flex flex-wrap gap-3">
+                          {variants.map(variant => {
+                            const color = colorMap[variant.valore] || '#9CA3AF';
+                            const isSelected = selectedVariant?.id === variant.id;
+                            const isWhitish = ['Bianco', 'Crema', 'Beige'].includes(variant.valore);
+                            return (
+                              <button
+                                key={variant.id}
+                                onClick={() => { setSelectedVariant(variant); setQuantity(1); }}
+                                className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
+                                  isSelected ? 'bg-white shadow-md scale-105 ring-2 ring-nature-500' : 'hover:bg-white/50'
+                                }`}
+                                title={variant.valore}
+                              >
+                                <div
+                                  className={`w-10 h-10 rounded-full transition-all ${isWhitish ? 'border-2 border-stone-200' : 'border-2 border-transparent'} ${
+                                    isSelected ? 'ring-2 ring-offset-2 ring-nature-500' : ''
+                                  }`}
+                                  style={{ backgroundColor: color }}
+                                />
+                                <span className="text-xs font-medium text-stone-600">{variant.valore}</span>
+                                {variant.prezzo > 0 && (
+                                  <span className="text-[10px] text-stone-400">
+                                    €{variant.prezzo_scontato ? variant.prezzo_scontato.toFixed(2) : variant.prezzo.toFixed(2)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        /* Buttons for Peso/Taglia/Formato */
+                        <div className="flex flex-wrap gap-2.5">
+                          {variants.map(variant => (
+                            <button
+                              key={variant.id}
+                              onClick={() => { setSelectedVariant(variant); setQuantity(1); }}
+                              className={`px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all min-w-[80px] text-center ${
+                                selectedVariant?.id === variant.id
+                                  ? 'border-nature-500 bg-white text-nature-700 shadow-md scale-105'
+                                  : 'border-transparent bg-white text-stone-600 hover:border-stone-200'
+                              }`}
+                            >
+                              {variant.valore || variant.nome_variante}
+                              {variant.prezzo > 0 && (
+                                <span className="block text-xs mt-0.5 font-medium text-stone-400">
+                                  €{variant.prezzo_scontato ? variant.prezzo_scontato.toFixed(2) : variant.prezzo.toFixed(2)}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       )}
-                    </button>
-                  ))}
-                </div>
+                    </div>
+                  ));
+                })()}
               </div>
             )}
 

@@ -1,31 +1,41 @@
 {
-    "collectionName": "components_product_variants",
-    "info": {
-        "displayName": "Variant",
-        "icon": "cubes"
+  "collectionName": "components_product_variants",
+  "info": {
+    "displayName": "Variant",
+    "icon": "cubes"
+  },
+  "options": {},
+  "attributes": {
+    "nome_variante": {
+      "type": "string",
+      "required": true
     },
-    "options": {},
-    "attributes": {
-        "nome_variante": {
-            "type": "string",
-            "required": true
-        },
-        "prezzo": {
-            "type": "decimal",
-            "default": 0
-        },
-        "prezzo_scontato": {
-            "type": "decimal"
-        },
-        "peso_kg": {
-            "type": "decimal"
-        },
-        "stock": {
-            "type": "integer",
-            "default": 0
-        },
-        "barcode": {
-            "type": "string"
-        }
+    "tipo_variante": {
+      "type": "enumeration",
+      "enum": ["Peso", "Colore", "Taglia", "Formato"],
+      "default": "Peso",
+      "required": true
+    },
+    "valore": {
+      "type": "string",
+      "required": true
+    },
+    "prezzo": {
+      "type": "decimal",
+      "default": 0
+    },
+    "prezzo_scontato": {
+      "type": "decimal"
+    },
+    "peso_kg": {
+      "type": "decimal"
+    },
+    "stock": {
+      "type": "integer",
+      "default": 0
+    },
+    "barcode": {
+      "type": "string"
     }
+  }
 }

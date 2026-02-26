@@ -135,7 +135,7 @@ export const Home: React.FC = () => {
             {categories.map(cat => (
               <button
                 key={cat.name}
-                onClick={() => navigate(cat.filter ? `/shop?filter=${cat.filter}` : '/shop')}
+                onClick={() => navigate(cat.filter ? `/shop?animale=${cat.filter}` : '/shop')}
                 className={`${cat.bg} ${cat.border} ${cat.hover} border-2 p-5 md:p-7 rounded-2xl flex flex-col items-center gap-3 transition-all duration-300 group`}
               >
                 <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center ${cat.text} bg-white/70 shadow-sm group-hover:scale-110 transition-transform`}>

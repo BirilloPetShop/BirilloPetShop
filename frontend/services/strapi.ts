@@ -1,5 +1,5 @@
 
-import { Product } from '../types';
+import { Product, CategoryData, CategoryTreeNode, BrandData, VariantType } from '../types';
 import { STRAPI_API_URL } from '../constants';
 
 const STRAPI_BASE = import.meta.env.VITE_API_URL || 'http://localhost:1337';
@@ -46,59 +46,98 @@ const getGalleryUrls = (galleryData: any): string[] => {
   });
 };
 
+// Helper: Build category chain from Strapi data
+const buildCategoryChain = (cat: any): CategoryData => {
+  const result: CategoryData = {
+    id: cat.id,
+    nome: cat.nome || cat.attributes?.nome || '',
+  };
+  if (cat.parent) {
+    const p = cat.parent.data ? cat.parent.data : cat.parent;
+    if (p && p.id) {
+      result.parent = buildCategoryChain(p);
+    }
+  }
+  return result;
+};
+
 // Mapper: Converts Raw Strapi JSON to our App's Product Interface
 const mapStrapiProduct = (item: any): Product => {
   try {
-    // Strapi v5 returns flat structure, v4 returns nested attributes
-    // We normalize to "attributes" concept for our frontend types, or just map directly
-
-    // Check if we have 'attributes' wrapper (v4) or if item is flat (v5)
     const isV4 = !!item.attributes;
     const data = isV4 ? item.attributes : item;
     const id = item.id;
 
-    // Category
+    // Category (con gerarchia)
     let categoryName = 'Generale';
+    let categoryObj: CategoryData | undefined = undefined;
     if (data.category) {
-      // v5 flat: data.category is object
-      // v4 nested: data.category.data.attributes
-      if (data.category.nome) categoryName = data.category.nome;
-      else if (data.category.data?.attributes?.nome) categoryName = data.category.data.attributes.nome;
+      const cat = data.category.data ? data.category.data : data.category;
+      if (cat) {
+        categoryName = cat.nome || cat.attributes?.nome || 'Generale';
+        categoryObj = buildCategoryChain(cat);
+      }
     } else if (data.categoria) {
       if (data.categoria.nome) categoryName = data.categoria.nome;
       else if (data.categoria.data?.attributes?.nome) categoryName = data.categoria.data.attributes.nome;
     }
 
-    // Animal
-    let animalName = 'Tutti';
-    if (data.animal) {
-      if (data.animal.nome) animalName = data.animal.nome;
-      else if (data.animal.data?.attributes?.nome) animalName = data.animal.data.attributes.nome;
+    // Animals (manyToMany — array)
+    let animalNames: string[] = [];
+    if (data.animals) {
+      const animalsArr = Array.isArray(data.animals)
+        ? data.animals
+        : (data.animals.data || []);
+      animalNames = animalsArr
+        .map((a: any) => a.nome || a.attributes?.nome)
+        .filter(Boolean);
+    } else if (data.animal) {
+      // Backward compat: vecchia relazione singola
+      const name = data.animal.nome || data.animal.data?.attributes?.nome;
+      if (name) animalNames = [name];
     } else if (data.animale) {
-      if (data.animale.nome) animalName = data.animale.nome;
-      else if (data.animale.data?.attributes?.nome) animalName = data.animale.data.attributes.nome;
+      if (typeof data.animale === 'string') animalNames = [data.animale];
+      else {
+        const name = data.animale.nome || data.animale.data?.attributes?.nome;
+        if (name) animalNames = [name];
+      }
+    }
+    if (animalNames.length === 0) animalNames = ['Tutti'];
+
+    // Brand (nuovo)
+    let brandName: string | undefined = undefined;
+    let brandObj: BrandData | undefined = undefined;
+    if (data.brand) {
+      const b = data.brand.data ? data.brand.data : data.brand;
+      if (b && b.nome) {
+        brandName = b.nome;
+        brandObj = {
+          id: b.id,
+          nome: b.nome,
+          descrizione: b.descrizione || undefined,
+          logo: b.logo ? getImageUrl(b.logo) : undefined,
+        };
+      }
     }
 
-    // Variants
-    // populate: ['immagine', 'category', 'animal', 'varianti'],
-    // v5: data.varianti_prodotto is array
-    // v4: data.varianti_prodotto.data is array
-    let variantsRaw = [];
+    // Variants (con tipo_variante e valore)
+    let variantsRaw: any[] = [];
     if (data.varianti_prodotto) {
       variantsRaw = Array.isArray(data.varianti_prodotto) ? data.varianti_prodotto : (data.varianti_prodotto.data || []);
     } else if (data.product_variants) {
       variantsRaw = Array.isArray(data.product_variants) ? data.product_variants : (data.product_variants.data || []);
-    } else if (data.varianti) { // Added to handle 'varianti' component directly
+    } else if (data.varianti) {
       variantsRaw = Array.isArray(data.varianti) ? data.varianti : (data.varianti.data || []);
     }
 
     const variants = variantsRaw.map((v: any) => ({
       id: v.id,
       nome_variante: v.nome_variante || v.attributes?.nome_variante || 'Variante',
+      tipo_variante: (v.tipo_variante || v.attributes?.tipo_variante || 'Peso') as VariantType,
+      valore: v.valore || v.attributes?.valore || v.nome_variante || '',
       prezzo: Number(v.prezzo || v.prezzo_aggiuntivo || v.attributes?.prezzo || v.attributes?.prezzo_aggiuntivo || 0),
       peso_kg: Number(v.peso_kg || v.attributes?.peso_kg || 0),
       prezzo_scontato: Number(v.prezzo_scontato || v.attributes?.prezzo_scontato || 0),
-      opzioni: v.opzioni || v.attributes?.opzioni || {},
       stock: Number(v.stock || v.attributes?.stock || 0),
       barcode: v.barcode || v.attributes?.barcode
     }));
@@ -109,14 +148,19 @@ const mapStrapiProduct = (item: any): Product => {
         nome: data.nome || 'Prodotto senza nome',
         prezzo: Number(data.prezzo) || 0,
         prezzo_scontato: data.prezzo_scontato ? Number(data.prezzo_scontato) : undefined,
-        descrizione: data.descrizione || '', // Rich text or string
+        descrizione: data.descrizione || '',
         categoria: categoryName,
-        animale: animalName,
+        categoriaObj: categoryObj,
+        animali: animalNames,
+        marca: brandName,
+        marcaObj: brandObj,
         is_service: Boolean(data.is_service),
         is_featured: Boolean(data.is_featured),
         immagine: getImageUrl(data.immagine),
         galleria: getGalleryUrls(data.galleria),
         varianti: variants,
+        stock: data.stock,
+        barcode: data.barcode,
       }
     };
   } catch (e) {
@@ -127,9 +171,7 @@ const mapStrapiProduct = (item: any): Product => {
 
 export const fetchProducts = async (): Promise<Product[]> => {
   try {
-    // Fetch products populate all possible relations name variations
     const query = `${STRAPI_API_URL}/products?populate=*`;
-
     console.log("Tentativo connessione Strapi:", query);
     const response = await fetch(query);
 
@@ -156,7 +198,6 @@ export const fetchProducts = async (): Promise<Product[]> => {
 
 export const fetchProductById = async (id: number): Promise<Product | null> => {
   try {
-    // Strapi v5 uses documentId for single-entry endpoints, so we filter by numeric id instead
     const response = await fetch(`${STRAPI_API_URL}/products?filters[id][$eq]=${id}&populate=*`);
     if (!response.ok) {
       throw new Error(`Errore fetch prodotto ${id}: ${response.status}`);
@@ -212,12 +253,44 @@ export const searchProductsPreview = async (query: string): Promise<Product[]> =
 // Dynamic filters
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/categories`);
+    const response = await fetch(`${STRAPI_API_URL}/categories?populate=parent`);
     const json = await response.json();
-    // v5 flat response
     return json.data.map((c: any) => c.nome || c.attributes?.nome);
   } catch (e) {
     console.warn("Categorie Strapi non trovate");
+    return [];
+  }
+};
+
+// Albero categorie gerarchico per la sidebar
+export const fetchCategoryTree = async (): Promise<CategoryTreeNode[]> => {
+  try {
+    const response = await fetch(`${STRAPI_API_URL}/categories?populate=*`);
+    const json = await response.json();
+
+    const all = json.data.map((c: any) => ({
+      id: c.id || c.data?.id,
+      nome: c.nome || c.attributes?.nome,
+      parentId: c.parent?.id || c.parent?.data?.id || null,
+      children: [] as CategoryTreeNode[],
+    }));
+
+    // Build tree from flat list
+    const map = new Map<number, any>();
+    const roots: CategoryTreeNode[] = [];
+
+    all.forEach((cat: any) => map.set(cat.id, cat));
+    all.forEach((cat: any) => {
+      if (cat.parentId && map.has(cat.parentId)) {
+        map.get(cat.parentId).children.push(cat);
+      } else {
+        roots.push(cat);
+      }
+    });
+
+    return roots;
+  } catch (e) {
+    console.warn("Albero categorie non trovato");
     return [];
   }
 };
@@ -226,10 +299,21 @@ export const fetchAnimals = async (): Promise<string[]> => {
   try {
     const response = await fetch(`${STRAPI_API_URL}/animals`);
     const json = await response.json();
-    // v5 flat response
     return json.data.map((a: any) => a.nome || a.attributes?.nome);
   } catch (e) {
     console.warn("Animali Strapi non trovati");
+    return [];
+  }
+};
+
+// Brands
+export const fetchBrands = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${STRAPI_API_URL}/brands`);
+    const json = await response.json();
+    return json.data.map((b: any) => b.nome || b.attributes?.nome);
+  } catch (e) {
+    console.warn("Marche Strapi non trovate");
     return [];
   }
 };
@@ -260,7 +344,6 @@ export const lookupProductByBarcode = async (barcode: string) => {
     const json = await response.json();
 
     if (!response.ok) {
-      // If 404, just return null, don't throw
       if (response.status === 404) return null;
       throw new Error(json.error?.message || 'Lookup failed');
     }

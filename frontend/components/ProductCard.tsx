@@ -22,7 +22,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     return null;
   }
 
-  const { nome, prezzo, prezzo_scontato, categoria, is_service, immagine, varianti } = product.attributes;
+  const { nome, prezzo, prezzo_scontato, categoria, marca, is_service, immagine, varianti } = product.attributes;
   const [quantity, setQuantity] = useState(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
 
@@ -140,7 +140,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         <div className="p-3.5 md:p-4 flex flex-col flex-grow">
-          <span className="inline-block bg-stone-100 text-stone-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 w-fit">{categoria}</span>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <span className="inline-block bg-stone-100 text-stone-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md w-fit">{categoria}</span>
+            {marca && <span className="text-stone-400 text-[10px] font-medium">· {marca}</span>}
+          </div>
           <h3
             className="font-display font-bold text-sm md:text-base text-stone-900 mb-2 leading-snug cursor-pointer hover:text-nature-600 transition-colors line-clamp-2"
             onClick={goToProductPage}

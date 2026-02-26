@@ -7,15 +7,30 @@ export enum OrderStatus {
   SHIPPED = 'Spedito'
 }
 
-// Relation Interfaces
-export interface CategoryData {
+// Brand Interface
+export interface BrandData {
   id: number;
-  attributes: {
-    nome: string;
-    slug?: string;
-  }
+  nome: string;
+  descrizione?: string;
+  logo?: string;
 }
 
+// Category Interface (con gerarchia)
+export interface CategoryData {
+  id: number;
+  nome: string;
+  parent?: CategoryData | null;
+  children?: CategoryData[];
+}
+
+// Category Tree Node (per sidebar negozio)
+export interface CategoryTreeNode {
+  id: number;
+  nome: string;
+  children: CategoryTreeNode[];
+}
+
+// Animal Interface
 export interface AnimalData {
   id: number;
   attributes: {
@@ -24,14 +39,18 @@ export interface AnimalData {
   }
 }
 
+// Variant Types
+export type VariantType = 'Peso' | 'Colore' | 'Taglia' | 'Formato';
+
 // Product Variant Interface
 export interface ProductVariant {
   id: number;
   nome_variante: string;
+  tipo_variante: VariantType;
+  valore: string;
   prezzo: number;
   peso_kg?: number;
   prezzo_scontato?: number;
-  opzioni?: Record<string, any>;
   stock?: number;
   barcode?: string;
 }
@@ -44,9 +63,11 @@ export interface Product {
     prezzo: number;
     prezzo_scontato?: number;
     descrizione: string;
-    // Changed from Enum to String (mapped from relation) for easier frontend display
     categoria: string;
-    animale: string;
+    categoriaObj?: CategoryData;
+    animali: string[];
+    marca?: string;
+    marcaObj?: BrandData;
     is_service: boolean;
     is_featured?: boolean;
     immagine: string;

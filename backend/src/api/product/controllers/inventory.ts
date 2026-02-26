@@ -109,7 +109,7 @@ export default {
             // 1. Search Product by Barcode
             const products = await strapi.entityService.findMany('api::product.product', {
                 filters: { barcode: barcode },
-                populate: ['immagine', 'category', 'animal', 'varianti']
+                populate: ['immagine', 'category', 'animals', 'varianti']
             });
 
             if (products && products.length > 0) {
@@ -123,7 +123,7 @@ export default {
                         barcode: barcode
                     }
                 },
-                populate: ['immagine', 'category', 'animal', 'varianti']
+                populate: ['immagine', 'category', 'animals', 'varianti']
             });
 
             if (productsWithVariant && productsWithVariant.length > 0) {

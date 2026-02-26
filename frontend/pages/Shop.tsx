@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Layout } from '../components/Layout';
 import { ProductCard } from '../components/ProductCard';
 import { SkeletonGrid } from '../components/Skeleton';
-import { fetchProducts, fetchCategories, fetchAnimals } from '../services/strapi';
-import { Product } from '../types';
+import { fetchProducts, fetchCategories, fetchAnimals, fetchBrands, fetchCategoryTree } from '../services/strapi';
+import { Product, CategoryTreeNode } from '../types';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, X, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
@@ -67,11 +67,14 @@ const ShopContent: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [animalsList, setAnimalsList] = useState<string[]>([]);
+  const [brandsList, setBrandsList] = useState<string[]>([]);
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeAnimal, setActiveAnimal] = useState('All');
+  const [activeBrand, setActiveBrand] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('default');
@@ -87,7 +90,7 @@ const ShopContent: React.FC = () => {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileSortOpen, setIsMobileSortOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
-    categorie: false, animale: false, prezzo: false, offerte: false,
+    categorie: false, animale: false, marca: false, prezzo: false, offerte: false,
   });
 
   // ─── Data Loading ───
@@ -95,14 +98,18 @@ const ShopContent: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [p, c, a] = await Promise.all([
+        const [p, c, a, b, tree] = await Promise.all([
           fetchProducts().catch(() => []),
           fetchCategories().catch(() => []),
           fetchAnimals().catch(() => []),
+          fetchBrands().catch(() => []),
+          fetchCategoryTree().catch(() => []),
         ]);
         setProducts(p || []);
         setCategoriesList(c || []);
         setAnimalsList(a || []);
+        setBrandsList(b || []);
+        setCategoryTree(tree || []);
       } catch (e) {
         console.error('Error loading shop data:', e);
       } finally {
@@ -116,9 +123,17 @@ const ShopContent: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const filterParam = params.get('filter');
+    const categoryParam = params.get('categoria');
+    const animalParam = params.get('animale');
+    const brandParam = params.get('marca');
     const searchParam = params.get('search');
-    if (filterParam) setActiveCategory(filterParam);
+    if (categoryParam) setActiveCategory(categoryParam);
+    else if (filterParam) setActiveCategory(filterParam);
     else setActiveCategory('All');
+    if (animalParam) setActiveAnimal(animalParam);
+    else setActiveAnimal('All');
+    if (brandParam) setActiveBrand(brandParam);
+    else setActiveBrand('All');
     if (searchParam) { setSearchQuery(searchParam); setLocalSearch(searchParam); }
     else { setSearchQuery(''); setLocalSearch(''); }
   }, [location.search]);
@@ -130,16 +145,17 @@ const ShopContent: React.FC = () => {
   }, [localSearch]);
 
   // ─── Reset page on filter change ───
-  useEffect(() => { setCurrentPage(1); }, [activeCategory, activeAnimal, searchQuery, sortBy, priceMin, priceMax, onSaleOnly]);
+  useEffect(() => { setCurrentPage(1); }, [activeCategory, activeAnimal, activeBrand, searchQuery, sortBy, priceMin, priceMax, onSaleOnly]);
 
   // ─── Filtering + Sorting ───
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => {
       if (!p || !p.attributes) return false;
-      const { categoria, animale, nome, descrizione, prezzo, prezzo_scontato } = p.attributes;
+      const { categoria, animali, marca, nome, descrizione, prezzo, prezzo_scontato } = p.attributes;
 
       const catMatch = activeCategory === 'All' || categoria === activeCategory;
-      const animalMatch = activeAnimal === 'All' || animale === activeAnimal;
+      const animalMatch = activeAnimal === 'All' || (animali && animali.includes(activeAnimal));
+      const brandMatch = activeBrand === 'All' || marca === activeBrand;
 
       const searchLower = searchQuery.toLowerCase();
       const nameStr = (typeof nome === 'string') ? nome.toLowerCase() : '';
@@ -153,7 +169,7 @@ const ShopContent: React.FC = () => {
 
       const saleMatch = !onSaleOnly || (prezzo_scontato !== undefined && prezzo_scontato !== null && prezzo_scontato < prezzo);
 
-      return catMatch && animalMatch && searchMatch && priceMatch && saleMatch;
+      return catMatch && animalMatch && brandMatch && searchMatch && priceMatch && saleMatch;
     });
 
     switch (sortBy) {
@@ -171,7 +187,7 @@ const ShopContent: React.FC = () => {
         break;
     }
     return result;
-  }, [products, activeCategory, activeAnimal, searchQuery, sortBy, priceMin, priceMax, onSaleOnly]);
+  }, [products, activeCategory, activeAnimal, activeBrand, searchQuery, sortBy, priceMin, priceMax, onSaleOnly]);
 
   // ─── Pagination ───
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
@@ -191,7 +207,7 @@ const ShopContent: React.FC = () => {
 
   // ─── Helpers ───
   const clearAllFilters = () => {
-    setActiveCategory('All'); setActiveAnimal('All');
+    setActiveCategory('All'); setActiveAnimal('All'); setActiveBrand('All');
     setSearchQuery(''); setLocalSearch('');
     setSortBy('default'); setPriceMin(''); setPriceMax('');
     setOnSaleOnly(false);
@@ -200,9 +216,53 @@ const ShopContent: React.FC = () => {
 
   const toggleSection = (s: string) => setCollapsedSections(prev => ({ ...prev, [s]: !prev[s] }));
 
-  const hasActiveFilters = activeCategory !== 'All' || activeAnimal !== 'All' || searchQuery !== '' || sortBy !== 'default' || priceMin !== '' || priceMax !== '' || onSaleOnly;
+  // Category tree expand/collapse state
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+  const toggleCategoryExpand = (id: number) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  const activeFilterCount = [activeCategory !== 'All', activeAnimal !== 'All', sortBy !== 'default', priceMin !== '', priceMax !== '', onSaleOnly].filter(Boolean).length;
+  const renderCategoryTree = (nodes: CategoryTreeNode[], depth = 0): React.ReactNode => (
+    nodes.map(node => {
+      const hasChildren = node.children && node.children.length > 0;
+      const isExpanded = expandedCategories.has(node.id);
+      return (
+        <div key={node.id}>
+          <div className="flex items-center gap-0.5">
+            {hasChildren ? (
+              <button onClick={() => toggleCategoryExpand(node.id)} className="p-1 text-stone-400 hover:text-stone-600 transition-colors flex-shrink-0">
+                <ChevronRight size={12} className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+              </button>
+            ) : (
+              <span className="w-5 flex-shrink-0" />
+            )}
+            <button
+              onClick={() => setActiveCategory(node.nome)}
+              className={`flex-1 text-left px-2 py-1.5 rounded-lg text-sm transition-all duration-200 ${
+                activeCategory === node.nome ? 'bg-nature-50 text-nature-700 font-bold' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+              }`}
+            >
+              {node.nome}
+            </button>
+          </div>
+          {isExpanded && hasChildren && (
+            <div className="ml-3 border-l border-stone-100 pl-1">
+              {renderCategoryTree(node.children, depth + 1)}
+            </div>
+          )}
+        </div>
+      );
+    })
+  );
+
+  const hasActiveFilters = activeCategory !== 'All' || activeAnimal !== 'All' || activeBrand !== 'All' || searchQuery !== '' || sortBy !== 'default' || priceMin !== '' || priceMax !== '' || onSaleOnly;
+
+  const activeFilterCount = [activeCategory !== 'All', activeAnimal !== 'All', activeBrand !== 'All', sortBy !== 'default', priceMin !== '', priceMax !== '', onSaleOnly].filter(Boolean).length;
 
   const getGridClass = () => {
     switch (viewMode) {
@@ -223,9 +283,13 @@ const ShopContent: React.FC = () => {
       {!collapsedSections.categorie && (
         <div className="space-y-0.5 pb-4">
           <SidebarFilterItem label="Tutti i Prodotti" isActive={activeCategory === 'All'} onClick={() => setActiveCategory('All')} />
-          {categoriesList.map(cat => (
-            <SidebarFilterItem key={cat} label={cat} isActive={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
-          ))}
+          {categoryTree.length > 0 ? (
+            renderCategoryTree(categoryTree)
+          ) : (
+            categoriesList.map(cat => (
+              <SidebarFilterItem key={cat} label={cat} isActive={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
+            ))
+          )}
         </div>
       )}
       <div className="border-b border-stone-100" />
@@ -244,6 +308,25 @@ const ShopContent: React.FC = () => {
         </div>
       )}
       <div className="border-b border-stone-100" />
+
+      {/* Marca */}
+      {brandsList.length > 0 && (
+        <>
+          <button onClick={() => toggleSection('marca')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
+            Marca
+            <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.marca ? '' : 'rotate-180'}`} />
+          </button>
+          {!collapsedSections.marca && (
+            <div className="space-y-0.5 pb-4">
+              <SidebarFilterItem label="Tutte" isActive={activeBrand === 'All'} onClick={() => setActiveBrand('All')} />
+              {brandsList.map(b => (
+                <SidebarFilterItem key={b} label={b} isActive={activeBrand === b} onClick={() => setActiveBrand(b)} />
+              ))}
+            </div>
+          )}
+          <div className="border-b border-stone-100" />
+        </>
+      )}
 
       {/* Prezzo */}
       <button onClick={() => toggleSection('prezzo')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
@@ -371,6 +454,7 @@ const ShopContent: React.FC = () => {
           <div className="mb-4 flex flex-wrap items-center gap-2">
             {activeCategory !== 'All' && <FilterChip label={`Categoria: ${activeCategory}`} onRemove={() => setActiveCategory('All')} />}
             {activeAnimal !== 'All' && <FilterChip label={`Animale: ${activeAnimal}`} onRemove={() => setActiveAnimal('All')} />}
+            {activeBrand !== 'All' && <FilterChip label={`Marca: ${activeBrand}`} onRemove={() => setActiveBrand('All')} />}
             {priceMin && <FilterChip label={`Min: €${priceMin}`} onRemove={() => setPriceMin('')} />}
             {priceMax && <FilterChip label={`Max: €${priceMax}`} onRemove={() => setPriceMax('')} />}
             {onSaleOnly && <FilterChip label="Solo Offerte" onRemove={() => setOnSaleOnly(false)} />}
