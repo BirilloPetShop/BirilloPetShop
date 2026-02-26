@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
@@ -68,6 +68,11 @@ export const ProductPage: React.FC = () => {
     }
   }, [product]);
 
+  // Reset image index when variant changes (to show variant image)
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedVariant]);
+
   // Scroll to top on mount
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -124,7 +129,17 @@ export const ProductPage: React.FC = () => {
   const basePrice = attr.prezzo;
   const salePrice = attr.prezzo_scontato;
 
-  const allImages = [attr.immagine, ...(attr.galleria || [])].filter(Boolean);
+  // Immagini dinamiche: se la variante ha un'immagine, mostrarla come prima
+  const allImages = useMemo(() => {
+    const productImages = [attr.immagine, ...(attr.galleria || [])].filter(Boolean);
+    if (selectedVariant?.immagine) {
+      // Variante con immagine: mettila come prima, poi le altre del prodotto (senza duplicati)
+      const variantImg = selectedVariant.immagine;
+      const otherImages = productImages.filter(img => img !== variantImg);
+      return [variantImg, ...otherImages];
+    }
+    return productImages;
+  }, [attr.immagine, attr.galleria, selectedVariant]);
 
   const effectiveBasePrice = salePrice || basePrice;
   const variantPrice = selectedVariant ? selectedVariant.prezzo : 0;

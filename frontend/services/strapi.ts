@@ -147,7 +147,8 @@ const mapStrapiProduct = (item: any): Product => {
       peso_kg: Number(v.peso_kg || v.attributes?.peso_kg || 0),
       prezzo_scontato: Number(v.prezzo_scontato || v.attributes?.prezzo_scontato || 0),
       stock: Number(v.stock || v.attributes?.stock || 0),
-      barcode: v.barcode || v.attributes?.barcode
+      barcode: v.barcode || v.attributes?.barcode,
+      immagine: v.immagine ? getImageUrl(v.immagine) : undefined,
     }));
 
     return {

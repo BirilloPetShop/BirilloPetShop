@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../services/cartContext';
 import { useToast } from '../services/toastContext';
@@ -35,6 +35,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
     }
   }, [isOpen, product]);
 
+  // Reset image when variant changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedVariant]);
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -53,11 +58,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
   const basePrice = product.attributes.prezzo;
   const salePrice = product.attributes.prezzo_scontato;
 
-  // Combine main image with gallery images
-  const allImages = [
-    product.attributes.immagine,
-    ...(product.attributes.galleria || [])
-  ].filter(Boolean); // Remove empty strings just in case
+  // Immagini dinamiche: se la variante ha un'immagine, mostrarla come prima
+  const allImages = useMemo(() => {
+    const productImages = [
+      product.attributes.immagine,
+      ...(product.attributes.galleria || [])
+    ].filter(Boolean);
+    if (selectedVariant?.immagine) {
+      const variantImg = selectedVariant.immagine;
+      const otherImages = productImages.filter(img => img !== variantImg);
+      return [variantImg, ...otherImages];
+    }
+    return productImages;
+  }, [product.attributes.immagine, product.attributes.galleria, selectedVariant]);
 
   // Use Sale price if exists, otherwise base
   const effectiveBasePrice = salePrice || basePrice;

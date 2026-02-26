@@ -64,6 +64,7 @@ export interface ProductVariant {
   prezzo_scontato?: number;
   stock?: number;
   barcode?: string;
+  immagine?: string;
 }
 
 // Product Interface

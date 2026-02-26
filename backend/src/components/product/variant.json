@@ -36,6 +36,12 @@
     },
     "barcode": {
       "type": "string"
+    },
+    "immagine": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
     }
   }
 }
