@@ -8,7 +8,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build && ls -la dist/
+RUN npm run build
 
 # ── Stage 2: Production ──
 FROM node:20-alpine
@@ -19,9 +19,10 @@ ENV NODE_ENV=production
 
 # Copy full dist (contains compiled TS + admin panel build)
 COPY --from=builder /app/dist ./dist
-# Strapi non-TS mode looks for config/src/build in appDir root
+# Strapi non-TS mode (no tsconfig.json) looks for config/src/build at appDir root
 COPY --from=builder /app/dist/config ./config
 COPY --from=builder /app/dist/src ./src
+COPY --from=builder /app/dist/build ./build
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/public ./public
