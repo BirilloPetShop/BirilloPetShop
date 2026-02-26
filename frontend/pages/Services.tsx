@@ -1,183 +1,347 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
-import { Button } from '../components/Button';
 import { useNavigate } from 'react-router-dom';
-import { Truck, MapPin, Clock, PenTool, Droplets, ArrowRight, CheckCircle, Info } from 'lucide-react';
+import { fetchServices } from '../services/strapi';
+import { Product } from '../types';
+import {
+  Fish, Wrench, Check, ArrowRight, Phone, Mail, MessageCircle,
+  Droplets, MapPin, Truck, Store, Package
+} from 'lucide-react';
 
 export const Services: React.FC = () => {
   const navigate = useNavigate();
+  const [maintenanceService, setMaintenanceService] = useState<Product | null>(null);
+  const [loadingServices, setLoadingServices] = useState(true);
 
-  const scrollToFooter = () => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  useEffect(() => {
+    const load = async () => {
+      const data = await fetchServices();
+      // Find maintenance service by name
+      const maint = data.find(s =>
+        s.attributes.nome.toLowerCase().includes('manutenzione')
+      );
+      if (maint) setMaintenanceService(maint);
+      setLoadingServices(false);
+    };
+    load();
+  }, []);
+
+  // Calculate maintenance price
+  const getMaintenancePrice = (): string | null => {
+    if (!maintenanceService) return null;
+    const { prezzo, prezzo_scontato, varianti } = maintenanceService.attributes;
+    if (varianti && varianti.length > 0) {
+      const cheapest = [...varianti].sort((a, b) => {
+        const pa = (a.prezzo_scontato && a.prezzo_scontato < a.prezzo) ? a.prezzo_scontato : a.prezzo;
+        const pb = (b.prezzo_scontato && b.prezzo_scontato < b.prezzo) ? b.prezzo_scontato : b.prezzo;
+        return pa - pb;
+      })[0];
+      const p = (cheapest.prezzo_scontato && cheapest.prezzo_scontato < cheapest.prezzo)
+        ? cheapest.prezzo_scontato : cheapest.prezzo;
+      return `€${p.toFixed(2)}`;
+    }
+    const finalPrice = (prezzo_scontato && prezzo_scontato < prezzo) ? prezzo_scontato : prezzo;
+    return `€${finalPrice.toFixed(2)}`;
   };
+
+  const maintenancePrice = getMaintenancePrice();
+  const hasMaintenanceVariants = maintenanceService?.attributes.varianti && maintenanceService.attributes.varianti.length > 0;
 
   return (
     <Layout>
-      {/* Hero Header */}
-      <div className="bg-nature-50 py-16 text-center px-4">
-        <h1 className="font-display text-4xl md:text-6xl font-bold text-stone-900 mb-6">
-          Ovunque tu sia, <br /><span className="text-nature-600">Noi ci siamo</span>
-        </h1>
-        <p className="text-stone-600 text-lg max-w-2xl mx-auto leading-relaxed">
-          Che tu viva in centro a Teramo o dall'altra parte d'Italia, garantiamo che i tuoi prodotti arrivino velocemente e in perfette condizioni.
-        </p>
-      </div>
+      {/* ══════ ACQUARIOFILIA ══════ */}
+      <section className="py-12 md:py-16 bg-stone-50">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-8 md:mb-10">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-stone-900">
+              Acquariofilia Professionale
+            </h1>
+            <p className="text-stone-500 mt-2 text-sm md:text-base">
+              Dalla progettazione alla manutenzione: creiamo e curiamo il tuo ecosistema acquatico.
+            </p>
+          </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-16 space-y-20">
+          <div className="grid md:grid-cols-2 gap-6 md:gap-8">
 
-        {/* SEZIONE 1: LOGISTICA E SPEDIZIONI */}
-        <section className="flex flex-col items-center">
-
-
-          <div className="grid md:grid-cols-2 gap-6 w-full">
-
-            {/* Spedizione Nazionale */}
-            <div className="bg-stone-50 p-8 md:p-10 rounded-3xl shadow-xl border-2 border-nature-200 flex flex-col items-start text-left relative overflow-hidden group">
-              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-nature-600 mb-6 group-hover:scale-110 transition-transform shadow-sm">
-                <Truck size={28} />
+          {/* ── Card 1: Installazione Acquario su Misura ── */}
+          <div className="bg-white rounded-3xl border-2 border-ocean-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col">
+            <div className="p-7 md:p-9 flex flex-col flex-grow">
+              {/* Icon + badge */}
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-16 h-16 bg-ocean-50 rounded-2xl flex items-center justify-center text-ocean-500">
+                  <Fish size={32} />
+                </div>
+                <span className="bg-ocean-50 text-ocean-700 text-xs font-bold px-3 py-1.5 rounded-full">
+                  Su Preventivo
+                </span>
               </div>
-              <h3 className="text-2xl font-bold text-stone-800 mb-3">Spedizione Nazionale</h3>
-              <p className="text-stone-600 mb-6 leading-relaxed">
-                Spediamo in tutta Italia con corriere espresso. Imballaggi sicuri e tracking in tempo reale per seguire il tuo pacco.
+
+              {/* Title + desc */}
+              <h3 className="font-display text-xl md:text-2xl font-bold text-stone-900 mb-3">
+                Installazione Acquario su Misura
+              </h3>
+              <p className="text-stone-600 leading-relaxed mb-6">
+                Progettiamo e realizziamo il tuo acquario dei sogni. Dall'idea al primo pesce, seguiamo ogni fase.
               </p>
 
-              <div className="w-full mb-4 grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-stone-500">
-                  <Clock size={16} className="text-nature-600" /> 24/48 Ore
-                </div>
-                <div className="flex items-center gap-2 text-sm font-bold text-stone-500">
-                  <CheckCircle size={16} className="text-nature-600" /> Tracciato
-                </div>
+              {/* Cosa include */}
+              <div className="mb-8 flex-grow">
+                <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">Cosa include</p>
+                <ul className="space-y-2.5">
+                  {[
+                    'Progettazione personalizzata',
+                    'Scelta materiali e specie',
+                    'Installazione professionale',
+                    'Avviamento biologico',
+                    'Test parametri acqua',
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm text-stone-700">
+                      <Check size={16} className="text-ocean-500 mt-0.5 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <div className="mt-auto w-full bg-white rounded-2xl p-4 border border-nature-100 shadow-sm">
-                <div className="flex justify-between items-center mb-2 text-sm text-stone-500">
-                  <span>Ordini &lt; €99</span>
-                  <span className="font-bold text-stone-800">€6.90</span>
-                </div>
-                <div className="flex justify-between items-center text-lg font-bold text-nature-600">
-                  <span>Ordini &gt; €99</span>
-                  <span>GRATIS</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Consegna Locale (Teramo) */}
-            <div className="bg-nature-600 p-8 md:p-10 rounded-3xl shadow-xl text-white flex flex-col items-start text-left relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-
-              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-sm group-hover:scale-110 transition-transform">
-                <MapPin size={28} />
-              </div>
-              <div className="flex justify-between items-start w-full pr-4">
-                <h3 className="text-2xl font-bold mb-3">Consegna a Domicilio</h3>
-                <span className="bg-white text-nature-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Teramo</span>
-              </div>
-              <p className="text-nature-100 mb-8 leading-relaxed max-w-sm">
-                Il nostro furgone, il nostro staff. Consegniamo personalmente a casa tua con la massima cura e flessibilità oraria.
-              </p>
-
-              <div className="mt-auto w-full bg-black/10 rounded-2xl p-4 backdrop-blur-sm border border-white/10">
-                <div className="flex justify-between items-center mb-2 text-sm text-nature-100">
-                  <span>Ordini &lt; €99</span>
-                  <span className="font-bold text-white">€4.99</span>
-                </div>
-                <div className="flex justify-between items-center text-lg font-bold text-white">
-                  <span>Ordini &gt; €99</span>
-                  <span className="text-nature-200">GRATIS</span>
-                </div>
+              {/* CTA */}
+              <div className="mt-auto">
+                <a
+                  href="https://wa.me/390861210515?text=Ciao!%20Vorrei%20informazioni%20per%20un%20acquario%20su%20misura."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-ocean-500 hover:bg-ocean-600 text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+                >
+                  <MessageCircle size={18} /> Richiedi Preventivo
+                </a>
+                <p className="text-center mt-3 text-sm text-stone-400">
+                  oppure chiama{' '}
+                  <a href="tel:0861210515" className="text-ocean-600 font-semibold hover:underline">
+                    0861 210515
+                  </a>
+                </p>
               </div>
             </div>
           </div>
-        </section>
 
-        {/* SEZIONE 2: ACQUARIOLOGIA PROFESSIONALE */}
-        <section className="bg-stone-900 rounded-3xl overflow-hidden relative">
-          {/* Sfondo Decorativo */}
+          {/* ── Card 2: Manutenzione Mensile ── */}
+          <div className="bg-white rounded-3xl border-2 border-nature-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col">
+            <div className="p-7 md:p-9 flex flex-col flex-grow">
+              {/* Icon + badge */}
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-16 h-16 bg-nature-50 rounded-2xl flex items-center justify-center text-nature-600">
+                  <Wrench size={32} />
+                </div>
+                {loadingServices ? (
+                  <div className="w-24 h-7 bg-stone-100 rounded-full animate-pulse"></div>
+                ) : maintenancePrice ? (
+                  <div className="text-right">
+                    {hasMaintenanceVariants && (
+                      <span className="block text-[10px] text-stone-400 font-bold uppercase">A partire da</span>
+                    )}
+                    <span className="text-nature-600 text-lg font-extrabold">{maintenancePrice}</span>
+                  </div>
+                ) : (
+                  <span className="bg-nature-50 text-nature-700 text-xs font-bold px-3 py-1.5 rounded-full">
+                    Contattaci
+                  </span>
+                )}
+              </div>
+
+              {/* Title + desc */}
+              <h3 className="font-display text-xl md:text-2xl font-bold text-stone-900 mb-3">
+                Manutenzione Mensile
+              </h3>
+              <p className="text-stone-600 leading-relaxed mb-6">
+                Ci occupiamo del tuo acquario ogni mese. Tu ti godi lo spettacolo, noi facciamo il resto.
+              </p>
+
+              {/* Cosa include */}
+              <div className="mb-8 flex-grow">
+                <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">Cosa include</p>
+                <ul className="space-y-2.5">
+                  {[
+                    'Cambio acqua parziale',
+                    'Pulizia vetri e filtri',
+                    'Controllo parametri chimici',
+                    'Verifica salute pesci',
+                    'Regolazione CO2 e illuminazione',
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm text-stone-700">
+                      <Check size={16} className="text-nature-600 mt-0.5 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* CTA */}
+              <div className="mt-auto">
+                {maintenanceService ? (
+                  <button
+                    onClick={() => navigate(`/product/${maintenanceService.id}`, { state: { product: maintenanceService } })}
+                    className="flex items-center justify-center gap-2 w-full bg-nature-600 hover:bg-nature-700 text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+                  >
+                    Prenota Ora <ArrowRight size={18} />
+                  </button>
+                ) : (
+                  <a
+                    href="https://wa.me/390861210515?text=Ciao!%20Vorrei%20informazioni%20sulla%20manutenzione%20mensile%20acquario."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-nature-600 hover:bg-nature-700 text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+                  >
+                    <MessageCircle size={18} /> Contattaci
+                  </a>
+                )}
+                <p className="text-center mt-3 text-sm text-stone-400">
+                  oppure chiama{' '}
+                  <a href="tel:0861210515" className="text-nature-600 font-semibold hover:underline">
+                    0861 210515
+                  </a>
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Banner zona servizio acquariofilia */}
+        <div className="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-5 md:p-6 flex items-center gap-4">
+          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <MapPin size={24} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="font-bold text-stone-800 text-sm md:text-base">
+              Servizi di acquariofilia disponibili a Teramo e provincia
+            </p>
+            <p className="text-stone-500 text-xs md:text-sm mt-0.5">
+              I nostri tecnici operano in tutta la provincia di Teramo. Contattaci per verificare la copertura nella tua zona.
+            </p>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      {/* ══════ SPEDIZIONI & RITIRO ══════ */}
+      <section className="py-12 md:py-16 bg-stone-50">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-8 md:mb-10">
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-stone-900">
+              Spedizioni & Ritiro
+            </h2>
+            <p className="text-stone-500 mt-2 text-sm md:text-base">
+              Scegli il metodo più comodo per ricevere i tuoi prodotti.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Card: Consegna a Domicilio */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-nature-50 rounded-xl flex items-center justify-center mb-4">
+                <Truck size={24} className="text-nature-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-stone-900 mb-2">Consegna a Domicilio</h3>
+              <p className="text-stone-500 text-sm leading-relaxed mb-3">
+                Riceviamo il tuo ordine e te lo consegniamo direttamente a casa, in giornata.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-nature-700 bg-nature-50 px-3 py-1.5 rounded-full">
+                <MapPin size={12} /> Provincia di Teramo
+              </span>
+            </div>
+
+            {/* Card: Ritiro in Negozio */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center mb-4">
+                <Store size={24} className="text-amber-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-stone-900 mb-2">Ritiro in Negozio</h3>
+              <p className="text-stone-500 text-sm leading-relaxed mb-3">
+                Ordina online e ritira comodamente presso il nostro negozio, senza costi aggiuntivi.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full">
+                <MapPin size={12} /> Via Po 26/28, Teramo
+              </span>
+            </div>
+
+            {/* Card: Spedizione Italia */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-ocean-50 rounded-xl flex items-center justify-center mb-4">
+                <Package size={24} className="text-ocean-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-stone-900 mb-2">Spedizione in tutta Italia</h3>
+              <p className="text-stone-500 text-sm leading-relaxed mb-3">
+                Spediamo in tutta Italia con corriere espresso. Ricevi i migliori prodotti ovunque tu sia.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ocean-700 bg-ocean-50 px-3 py-1.5 rounded-full">
+                <Package size={12} /> Corriere Espresso
+              </span>
+            </div>
+          </div>
+
+          {/* Banner spedizione gratuita */}
+          <div className="mt-8 bg-nature-50 border-2 border-nature-100 rounded-2xl p-5 md:p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-nature-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Package size={24} className="text-nature-600" />
+            </div>
+            <div>
+              <p className="font-bold text-stone-800 text-sm md:text-base">
+                Spedizione GRATUITA per ordini superiori a €99
+              </p>
+              <p className="text-stone-500 text-xs md:text-sm mt-0.5">
+                Sia per la consegna a domicilio in Provincia di Teramo che per la spedizione in tutta Italia.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ CTA CONTATTO ══════ */}
+      <section className="max-w-6xl mx-auto px-4 pb-16 md:pb-24">
+        <div className="bg-stone-900 rounded-3xl overflow-hidden relative">
           <div className="absolute inset-0">
             <img
               src="https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?auto=format&fit=crop&w=1600&q=80"
-              alt="Aquascape background"
-              className="w-full h-full object-cover opacity-30"
+              alt=""
+              className="w-full h-full object-cover opacity-20"
+              loading="lazy"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-stone-900 via-stone-900/90 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/85 to-stone-900/70"></div>
           </div>
 
-          <div className="relative z-10 p-8 md:p-16 flex flex-col items-center text-center">
-
-            <div className="flex items-center gap-2 text-nature-400 font-bold uppercase tracking-wider text-sm mb-4">
-              <Droplets size={18} /> Dipartimento Acquariofilia
-            </div>
-
-            <h2 className="font-display text-3xl md:text-5xl font-bold leading-tight text-white mb-6 max-w-3xl">
-              L'Arte dell'Acquariofilia <br /><span className="text-nature-400">a Casa Tua</span>
+          <div className="relative z-10 p-8 md:p-12 lg:p-14 text-center">
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-white mb-3">
+              Hai Domande? Siamo Qui per Te.
             </h2>
-
-            <p className="text-stone-300 text-lg leading-relaxed max-w-2xl mb-10">
-              Creiamo e curiamo ecosistemi sommersi unici. Affidati alla nostra esperienza ventennale per progettare l'acquario dei tuoi sogni o per mantenerlo sempre spettacolare e in salute.
+            <p className="text-stone-400 max-w-md mx-auto mb-8 text-sm md:text-base leading-relaxed">
+              Contattaci senza impegno per qualsiasi informazione o preventivo.
             </p>
 
-            {/* Features Row */}
-            <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-stone-200 mb-12">
-              <div className="flex items-center gap-2 bg-stone-800/50 px-4 py-2 rounded-full border border-white/5">
-                <CheckCircle className="text-nature-500" size={18} /> <span className="text-sm font-bold">Analisi Acqua</span>
-              </div>
-              <div className="flex items-center gap-2 bg-stone-800/50 px-4 py-2 rounded-full border border-white/5">
-                <CheckCircle className="text-nature-500" size={18} /> <span className="text-sm font-bold">Aquascaping</span>
-              </div>
-              <div className="flex items-center gap-2 bg-stone-800/50 px-4 py-2 rounded-full border border-white/5">
-                <CheckCircle className="text-nature-500" size={18} /> <span className="text-sm font-bold">Manutenzione</span>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <a
+                href="https://wa.me/390861210515"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white font-bold px-5 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <MessageCircle size={18} /> WhatsApp
+              </a>
+              <a
+                href="tel:0861210515"
+                className="flex items-center gap-2.5 bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl border border-white/20 backdrop-blur-sm transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <Phone size={18} /> 0861 210515
+              </a>
+              <a
+                href="mailto:birillopetshop@hotmail.it"
+                className="flex items-center gap-2.5 bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl border border-white/20 backdrop-blur-sm transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <Mail size={18} /> Email
+              </a>
             </div>
-
-            {/* Cards Grid */}
-            <div className="grid md:grid-cols-2 gap-6 w-full max-w-4xl">
-
-              {/* Card: Manutenzione */}
-              <div className="bg-white/10 backdrop-blur-md border border-white/10 p-8 rounded-3xl hover:bg-white/15 transition-all text-left group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="bg-nature-500/20 p-3 rounded-xl">
-                    <PenTool className="text-nature-400" size={24} />
-                  </div>
-                  <span className="text-[10px] bg-nature-600 text-white px-2 py-1 rounded uppercase font-bold tracking-wide">Solo Teramo</span>
-                </div>
-                <h4 className="text-white font-bold text-xl mb-2">Manutenzione Programmata</h4>
-                <p className="text-stone-300 text-sm mb-6 leading-relaxed">
-                  Pensiamo a tutto noi: cambi d'acqua, potatura piante, pulizia filtri e monitoraggio salute. Goditi solo la bellezza.
-                </p>
-                <Button onClick={() => navigate('/shop?filter=Servizi')} className="w-full justify-between bg-white/10 hover:bg-white/20 border-0 shadow-lg shadow-nature-500/30">
-                  Prenota Intervento <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </div>
-
-              {/* Card: Nuovo Acquario */}
-              <div className="bg-white/10 backdrop-blur-md border border-white/10 p-8 rounded-3xl hover:bg-white/15 transition-all text-left group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="bg-blue-500/20 p-3 rounded-xl">
-                    <Droplets className="text-blue-400" size={24} />
-                  </div>
-                </div>
-                <h4 className="text-white font-bold text-xl mb-2">Progettazione & Allestimento</h4>
-                <p className="text-stone-300 text-sm mb-6 leading-relaxed">
-                  Dal primo vetro al primo pesce. Realizziamo acquari su misura, biotopi specifici e aquascaping di alto livello.
-                </p>
-                <Button onClick={() => navigate('/shop?filter=Acquari')} className="w-full justify-between bg-white/10 hover:bg-white/20 border-0 shadow-lg shadow-blue-500/30">
-                  Inizia il Progetto <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </div>
-
-            </div>
-
-            {/* Disclaimer Footer */}
-            <div className="mt-10 text-stone-400 text-xs flex items-center gap-2 bg-black/20 px-4 py-2 rounded-full">
-              <MapPin size={14} /> Servizi a domicilio disponibili esclusivamente a Teramo e provincia.
-            </div>
-
           </div>
-        </section>
-
-      </div>
+        </div>
+      </section>
     </Layout>
   );
 };

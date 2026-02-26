@@ -4,6 +4,12 @@
 
 import { factories } from '@strapi/strapi';
 import Stripe from 'stripe';
+import {
+    orderConfirmationHtml,
+    orderConfirmationSubject,
+    buildOrderItemsHtml,
+    buildShippingAddressHtml
+} from '../../../email-templates/order-confirmation';
 
 const stripe = new Stripe(process.env.STRIPE_SK as string, {
     apiVersion: '2025-11-17.clover' as any, // Cast to any to avoid strict type checking issues if SDK version mismatches
@@ -76,13 +82,18 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
                 if (item.variant_id) {
                     // Check Variant Stock (Component)
+                    // Strapi 5: use entityService with object populate syntax
                     const product = await strapi.entityService.findOne('api::product.product', item.id, {
-                        populate: ['varianti']
+                        populate: { varianti: true }
                     }) as any;
 
                     if (!product) throw new Error(`Prodotto non trovato: ${item.name}`);
 
-                    const variant = product.varianti?.find((v: any) => v.id === item.variant_id);
+                    // Robust variant matching: try by ID (loose), then fallback to name
+                    let variant = product.varianti?.find((v: any) => v.id == item.variant_id);
+                    if (!variant && item.variant) {
+                        variant = product.varianti?.find((v: any) => v.nome_variante === item.variant);
+                    }
                     if (!variant) throw new Error(`Variante non trovata: ${item.variant} (${item.name})`);
 
                     availableStock = variant.stock ?? 0;
@@ -168,8 +179,22 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         const stripeSignature = ctx.request.headers['stripe-signature'];
         let event;
 
-        // In production, verify signature here
-        event = ctx.request.body;
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+        if (webhookSecret && stripeSignature) {
+            try {
+                event = stripe.webhooks.constructEvent(
+                    ctx.request.body[Symbol.for('unparsedBody')] || JSON.stringify(ctx.request.body),
+                    stripeSignature,
+                    webhookSecret
+                );
+            } catch (err: any) {
+                console.error('Stripe webhook signature verification failed:', err.message);
+                return ctx.badRequest('Webhook signature verification failed');
+            }
+        } else {
+            // Development mode: no signature verification
+            event = ctx.request.body;
+        }
 
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
@@ -199,13 +224,13 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                                     // Decrement Variant (Component)
                                     // 1. Fetch Product with Variants
                                     const product = await strapi.entityService.findOne('api::product.product', item.id, {
-                                        populate: ['varianti']
+                                        populate: { varianti: true }
                                     }) as any;
 
                                     if (product && product.varianti) {
-                                        // 2. Find and Update Variant in the array
+                                        // 2. Find and Update Variant in the array (loose comparison for ID types)
                                         const updatedVariants = product.varianti.map((v: any) => {
-                                            if (v.id === item.variant_id) {
+                                            if (v.id == item.variant_id || v.nome_variante === item.variant) {
                                                 const newStock = Math.max(0, (v.stock || 0) - item.quantity);
                                                 console.log(`Decremented stock for variant ${v.id}: ${v.stock} -> ${newStock}`);
                                                 return { ...v, stock: newStock };
@@ -235,6 +260,47 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                         }
                     }
 
+                    // ── Send Order Confirmation Email ──
+                    try {
+                        const orderData = order as any;
+                        const orderUser = await strapi.entityService.findOne('plugin::users-permissions.user', orderData.user?.id || orderData.user) as any;
+                        if (orderUser?.email) {
+                            const cartItems = order.cart_snapshot as any[] || [];
+                            const shipping = order.shipping_details as any;
+                            const itemsTotal = cartItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                            const shippingCost = (order.total_paid || 0) - itemsTotal;
+                            const orderDate = new Date(order.createdAt).toLocaleDateString('it-IT', {
+                                day: '2-digit', month: 'long', year: 'numeric'
+                            });
+
+                            const siteUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+                            let html = orderConfirmationHtml
+                                .replace(/\{\{ORDER_ID\}\}/g, String(order.id))
+                                .replace(/\{\{USER_NAME\}\}/g, orderUser.nome_completo || orderUser.username || '')
+                                .replace(/\{\{ORDER_ITEMS_HTML\}\}/g, buildOrderItemsHtml(cartItems))
+                                .replace(/\{\{SUBTOTAL\}\}/g, `\u20ac${itemsTotal.toFixed(2)}`)
+                                .replace(/\{\{SHIPPING_COST\}\}/g, shippingCost > 0.01 ? `\u20ac${shippingCost.toFixed(2)}` : 'Gratis')
+                                .replace(/\{\{TOTAL\}\}/g, `\u20ac${(order.total_paid || 0).toFixed(2)}`)
+                                .replace(/\{\{SHIPPING_ADDRESS\}\}/g, buildShippingAddressHtml(shipping))
+                                .replace(/\{\{ORDER_DATE\}\}/g, orderDate)
+                                .replace(/\{\{SITE_URL\}\}/g, siteUrl);
+
+                            const subject = orderConfirmationSubject
+                                .replace(/\{\{ORDER_ID\}\}/g, String(order.id));
+
+                            await strapi.plugin('email').service('email').send({
+                                to: orderUser.email,
+                                subject,
+                                html,
+                            });
+                            console.log(`Order confirmation email sent to ${orderUser.email}`);
+                        }
+                    } catch (emailErr) {
+                        console.error('Failed to send order confirmation email:', emailErr);
+                        // Don't fail the webhook if email fails
+                    }
+
                     console.log(`Order ${order.id} processed successfully`);
                 } else {
                     console.warn(`No order found for Stripe Session ${stripeId}`);
@@ -246,5 +312,129 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         }
 
         return { received: true };
+    },
+
+    async verifyPayment(ctx) {
+        const user = ctx.state.user;
+        if (!user) return ctx.unauthorized("Devi essere autenticato");
+
+        const { session_id } = ctx.request.body as any;
+        if (!session_id) return ctx.badRequest("session_id richiesto");
+
+        try {
+            // 1. Retrieve session from Stripe
+            const session = await stripe.checkout.sessions.retrieve(session_id);
+
+            if (session.payment_status !== 'paid') {
+                return { status: 'pending', message: 'Pagamento non ancora completato' };
+            }
+
+            // 2. Find order by stripe_id
+            const orders = await strapi.entityService.findMany('api::order.order', {
+                filters: { stripe_id: session_id, user: user.id },
+                populate: { user: true },
+            });
+
+            if (!orders || orders.length === 0) {
+                return ctx.notFound("Ordine non trovato");
+            }
+
+            const order = orders[0];
+
+            // 3. If already processed, skip
+            if (order.stato === 'Pagato') {
+                return { status: 'already_paid', order_id: order.id };
+            }
+
+            // 4. Update status to Pagato
+            await strapi.entityService.update('api::order.order', order.id, {
+                data: { stato: 'Pagato' },
+            });
+
+            // 5. Decrement stock
+            const cartItems = order.cart_snapshot as any[];
+            if (cartItems && Array.isArray(cartItems)) {
+                for (const item of cartItems) {
+                    if (item.is_service) continue;
+                    try {
+                        if (item.variant_id) {
+                            const product = await strapi.entityService.findOne('api::product.product', item.id, {
+                                populate: { varianti: true }
+                            }) as any;
+                            if (product && product.varianti) {
+                                const updatedVariants = product.varianti.map((v: any) => {
+                                    if (v.id == item.variant_id || v.nome_variante === item.variant) {
+                                        const newStock = Math.max(0, (v.stock || 0) - item.quantity);
+                                        console.log(`[verify] Stock variant ${v.id}: ${v.stock} -> ${newStock}`);
+                                        return { ...v, stock: newStock };
+                                    }
+                                    return v;
+                                });
+                                await strapi.entityService.update('api::product.product', item.id, {
+                                    data: { varianti: updatedVariants }
+                                });
+                            }
+                        } else {
+                            const product = await strapi.entityService.findOne('api::product.product', item.id);
+                            if (product) {
+                                const newStock = Math.max(0, (product.stock || 0) - item.quantity);
+                                await strapi.entityService.update('api::product.product', item.id, {
+                                    data: { stock: newStock }
+                                });
+                                console.log(`[verify] Stock product ${product.id}: ${product.stock} -> ${newStock}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`[verify] Failed stock decrement for ${item.name}`, err);
+                    }
+                }
+            }
+
+            // 6. Send confirmation email
+            try {
+                const orderData = order as any;
+                const orderUser = await strapi.entityService.findOne('plugin::users-permissions.user', orderData.user?.id || orderData.user) as any;
+                if (orderUser?.email) {
+                    const items = order.cart_snapshot as any[] || [];
+                    const shipping = order.shipping_details as any;
+                    const itemsTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                    const shippingCost = (order.total_paid || 0) - itemsTotal;
+                    const orderDate = new Date(order.createdAt).toLocaleDateString('it-IT', {
+                        day: '2-digit', month: 'long', year: 'numeric'
+                    });
+                    const siteUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+                    let html = orderConfirmationHtml
+                        .replace(/\{\{ORDER_ID\}\}/g, String(order.id))
+                        .replace(/\{\{USER_NAME\}\}/g, orderUser.nome_completo || orderUser.username || '')
+                        .replace(/\{\{ORDER_ITEMS_HTML\}\}/g, buildOrderItemsHtml(items))
+                        .replace(/\{\{SUBTOTAL\}\}/g, `\u20ac${itemsTotal.toFixed(2)}`)
+                        .replace(/\{\{SHIPPING_COST\}\}/g, shippingCost > 0.01 ? `\u20ac${shippingCost.toFixed(2)}` : 'Gratis')
+                        .replace(/\{\{TOTAL\}\}/g, `\u20ac${(order.total_paid || 0).toFixed(2)}`)
+                        .replace(/\{\{SHIPPING_ADDRESS\}\}/g, buildShippingAddressHtml(shipping))
+                        .replace(/\{\{ORDER_DATE\}\}/g, orderDate)
+                        .replace(/\{\{SITE_URL\}\}/g, siteUrl);
+
+                    const subject = orderConfirmationSubject
+                        .replace(/\{\{ORDER_ID\}\}/g, String(order.id));
+
+                    await strapi.plugin('email').service('email').send({
+                        to: orderUser.email,
+                        subject,
+                        html,
+                    });
+                    console.log(`[verify] Order confirmation email sent to ${orderUser.email}`);
+                }
+            } catch (emailErr) {
+                console.error('[verify] Failed to send order confirmation email:', emailErr);
+            }
+
+            console.log(`[verify] Order ${order.id} verified and processed`);
+            return { status: 'paid', order_id: order.id };
+
+        } catch (error: any) {
+            console.error('[verify] Error:', error);
+            return ctx.badRequest(error.message || 'Errore nella verifica del pagamento');
+        }
     },
 }));

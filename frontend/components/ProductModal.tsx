@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../services/cartContext';
-import { X, ShoppingBag, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useToast } from '../services/toastContext';
+import { X, ShoppingBag, Tag, ChevronLeft, ChevronRight, Package, AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +16,7 @@ interface ProductModalProps {
 
 export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose }) => {
   const { addToCart } = useCart();
+  const { showToast } = useToast();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -83,8 +85,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
     ? (variantDiscountPrice && variantDiscountPrice < variantPrice)
     : (salePrice && salePrice < basePrice);
 
+  // Stock info
+  const currentStock = selectedVariant
+    ? (selectedVariant.stock || 0)
+    : (product.attributes.stock || 0);
+  const isOutOfStock = !isService && currentStock <= 0;
+  const isLowStock = !isService && currentStock > 0 && currentStock <= 3;
+
   const handleAddToCart = () => {
     addToCart(product, quantity, selectedVariant);
+    showToast(`${product.attributes.nome} aggiunto al carrello!`, 'success');
     onClose();
   };
 
@@ -138,13 +148,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
                 <>
                   <button
                     onClick={prevImage}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-stone-600 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-stone-600 p-2.5 rounded-full shadow-md lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    aria-label="Immagine precedente"
                   >
                     <ChevronLeft size={24} />
                   </button>
                   <button
                     onClick={nextImage}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-stone-600 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-stone-600 p-2.5 rounded-full shadow-md lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    aria-label="Immagine successiva"
                   >
                     <ChevronRight size={24} />
                   </button>
@@ -259,9 +271,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
                       </div>
                     )}
 
-                    <Button onClick={handleAddToCart} className="w-full py-4 text-lg shadow-xl shadow-nature-200 hover:shadow-nature-300 transform hover:-translate-y-1 rounded-2xl">
+                    {/* Stock Status */}
+                    {!isService && (
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold ${
+                        isOutOfStock ? 'bg-red-50 text-red-600 border border-red-100' :
+                        isLowStock ? 'bg-yellow-50 text-yellow-700 border border-yellow-100' :
+                        'bg-green-50 text-green-700 border border-green-100'
+                      }`}>
+                        {isOutOfStock ? (
+                          <><AlertTriangle size={16} /> Esaurito</>
+                        ) : isLowStock ? (
+                          <><AlertTriangle size={16} /> Ultime {currentStock} unità disponibili!</>
+                        ) : (
+                          <><Package size={16} /> Disponibile</>
+                        )}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleAddToCart}
+                      disabled={isOutOfStock}
+                      className={`w-full py-4 text-lg shadow-xl shadow-nature-200 hover:shadow-nature-300 transform hover:-translate-y-1 rounded-2xl ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
                       <ShoppingBag className="mr-2" size={20} />
-                      {isService ? 'Prenota Servizio' : 'Aggiungi al Carrello'}
+                      {isService ? 'Prenota Servizio' : isOutOfStock ? 'Non Disponibile' : 'Aggiungi al Carrello'}
                     </Button>
                   </div>
                 </div>

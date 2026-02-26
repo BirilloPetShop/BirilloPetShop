@@ -1,42 +1,46 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '../components/Layout';
 import { useCart } from '../services/cartContext';
 import { useAuth } from '../services/authContext';
 import { Button } from '../components/Button';
-import { Calendar as CalendarIcon, CreditCard, Package, MapPin, AlertCircle, CheckCircle, Truck, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {
+  Calendar as CalendarIcon, CreditCard, Package, MapPin, AlertCircle,
+  CheckCircle, Truck, FileText, Check, ShoppingBag, LogIn, Loader2,
+  Lock, ChevronRight, Home as HomeIcon, Store, Shield, X
+} from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { STRAPI_API_URL } from '../constants';
 import { loadStripe } from '@stripe/stripe-js';
 
-// Chiave Pubblica di Stripe (Produzione / Test)
-const stripePromise = loadStripe('pk_test_51SV5rnFi1kEwIp0cCe1ch3oCZiyQMlhYfGPvNXbbmcSrtlI2pJkvfwYttP4RjuG8poIIXvLubLedzzXGYGJgAVqe00hvcY2kTk');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK || 'pk_test_51SV5rnFi1kEwIp0cCe1ch3oCZiyQMlhYfGPvNXbbmcSrtlI2pJkvfwYttP4RjuG8poIIXvLubLedzzXGYGJgAVqe00hvcY2kTk');
 
 export const Checkout: React.FC = () => {
-  const { items, total, updateServiceDetails, clearCart } = useCart();
-  const { user, isAuthenticated, updateProfile, token, isLoading } = useAuth();
+  const { items, total, totalSavings, updateServiceDetails, clearCart } = useCart();
+  const { user, isAuthenticated, updateProfile, refreshUser, token, isLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  // Local state for shipping edit if user wants to update address during checkout
   const [shippingDetails, setShippingDetails] = useState({
-    address: '',
-    city: '',
-    zip: '',
-    phone: '',
-    notes: ''
+    address: '', city: '', zip: '', phone: '', notes: ''
   });
   const [isEditingAddress, setIsEditingAddress] = useState(false);
-
-  // State for manual selection of local delivery
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [wantsLocalDelivery, setWantsLocalDelivery] = useState(false);
+  const addressInitialized = useRef(false);
 
+  // Fetch fresh user data from Strapi on mount
   useEffect(() => {
-    if (isLoading) return;
+    if (!isLoading && isAuthenticated) {
+      refreshUser();
+    }
+  }, [isLoading, isAuthenticated]);
 
-    if (!isAuthenticated) {
-      navigate('/login');
-    } else if (user) {
+  // Pre-fill shipping form from user profile (only once)
+  useEffect(() => {
+    if (isLoading || addressInitialized.current) return;
+    if (user) {
       setShippingDetails({
         address: user.indirizzo || '',
         city: user.citta || '',
@@ -44,48 +48,88 @@ export const Checkout: React.FC = () => {
         phone: user.telefono || '',
         notes: user.note_indirizzo || ''
       });
+      addressInitialized.current = true;
     }
-  }, [isAuthenticated, user, navigate, isLoading]);
+  }, [user, isLoading]);
 
-  // Helper Logic: Detect Teramo Province eligibility
+  // ── Shipping Logic ──
   const isEligibleForLocalDelivery = () => {
     const city = shippingDetails.city.toLowerCase().trim();
     const zip = shippingDetails.zip.trim();
-    // Check if city contains 'teramo' or zip starts with '64' (Teramo province prefix)
     return city.includes('teramo') || zip.startsWith('64');
   };
-
   const canHaveLocalDelivery = isEligibleForLocalDelivery();
 
-  // Reset local delivery selection if address changes to non-eligible
   useEffect(() => {
-    if (!canHaveLocalDelivery) {
-      setWantsLocalDelivery(false);
-    }
+    if (!canHaveLocalDelivery) setWantsLocalDelivery(false);
   }, [canHaveLocalDelivery]);
 
-  // Shipping Cost Logic
-  // If Order > 99: Free
-  // If Local Delivery Selected (< 99): 4.99
-  // Else (< 99): 9.90
   const isFreeShippingThreshold = total >= 99;
-
-  const shippingCost = isFreeShippingThreshold
-    ? 0
-    : (wantsLocalDelivery ? 4.99 : 9.90);
-
+  const shippingCost = isFreeShippingThreshold ? 0 : (wantsLocalDelivery ? 4.99 : 9.90);
   const finalTotal = total + shippingCost;
 
   const serviceItems = items.filter(item => item.attributes.is_service);
   const physicalItems = items.filter(item => !item.attributes.is_service);
-
   const hasPhysicalItems = physicalItems.length > 0;
   const hasAddress = user?.indirizzo && user?.citta && user?.cap;
-
-  // If physical items exist, address is mandatory
   const canProceed = !hasPhysicalItems || (hasAddress && !isEditingAddress);
 
+  // ── Stepper ──
+  const getCheckoutStep = () => {
+    if (!hasPhysicalItems) return 2;
+    if (!hasAddress || isEditingAddress) return 1;
+    if (isProcessing) return 3;
+    return 2;
+  };
+  const checkoutStep = getCheckoutStep();
+
+  const steps = [
+    { num: 1, label: 'Indirizzo', icon: MapPin },
+    { num: 2, label: 'Riepilogo', icon: Package },
+    { num: 3, label: 'Pagamento', icon: CreditCard },
+  ];
+
+  // ── Validation ──
+  const validateField = (name: string, value: string) => {
+    const errs = { ...fieldErrors };
+    switch (name) {
+      case 'zip':
+        if (value && !/^\d{5}$/.test(value)) errs.zip = 'Il CAP deve essere di 5 cifre';
+        else delete errs.zip;
+        break;
+      case 'phone':
+        if (value && !/^(\+39\s?)?[0-9]{9,11}$/.test(value.replace(/\s/g, ''))) errs.phone = 'Inserisci un numero valido';
+        else delete errs.phone;
+        break;
+      case 'address':
+        if (!value.trim()) errs.address = 'Campo obbligatorio';
+        else delete errs.address;
+        break;
+      case 'city':
+        if (!value.trim()) errs.city = 'Campo obbligatorio';
+        else delete errs.city;
+        break;
+    }
+    setFieldErrors(errs);
+  };
+
+  const handleFieldChange = (name: string, value: string) => {
+    setShippingDetails(prev => ({ ...prev, [name]: value }));
+    validateField(name, value);
+  };
+
   const handleSaveAddress = async () => {
+    const errs: Record<string, string> = {};
+    if (!shippingDetails.address.trim()) errs.address = 'Campo obbligatorio';
+    if (!shippingDetails.city.trim()) errs.city = 'Campo obbligatorio';
+    if (!shippingDetails.zip.trim()) errs.zip = 'Campo obbligatorio';
+    else if (!/^\d{5}$/.test(shippingDetails.zip)) errs.zip = 'Il CAP deve essere di 5 cifre';
+    if (shippingDetails.phone && !/^(\+39\s?)?[0-9]{9,11}$/.test(shippingDetails.phone.replace(/\s/g, ''))) {
+      errs.phone = 'Inserisci un numero valido';
+    }
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+
+    setFieldErrors({});
     await updateProfile({
       indirizzo: shippingDetails.address,
       citta: shippingDetails.city,
@@ -96,335 +140,498 @@ export const Checkout: React.FC = () => {
     setIsEditingAddress(false);
   };
 
+  // ── Payment ──
   const handlePayment = async () => {
     if (!token || !user) return;
     setIsProcessing(true);
+    setErrorMessage('');
 
     try {
-      console.log("Starting payment process...");
-      // 1. Prepare Payload
       const orderPayload = {
         data: {
           user: user.id,
           total_paid: finalTotal,
-          stato: "In Attesa", // Will be updated by webhook or manual check
+          stato: "In Attesa",
           shipping_details: shippingDetails,
           cart_snapshot: items.map(item => ({
             id: item.id,
             name: item.attributes.nome,
             quantity: item.quantity,
-            price: (item.attributes.prezzo_scontato || item.attributes.prezzo) + (item.selectedVariant?.attributes.prezzo_aggiuntivo || 0),
-            variant: item.selectedVariant?.attributes.nome_variante,
+            price: item.selectedVariant
+              ? (item.selectedVariant.prezzo_scontato || item.selectedVariant.prezzo)
+              : (item.attributes.prezzo_scontato || item.attributes.prezzo),
+            variant: item.selectedVariant?.nome_variante,
             variant_id: item.selectedVariant?.id,
             is_service: item.attributes.is_service,
             service_date: item.serviceDate,
-            service_notes: item.serviceNotes
+            service_notes: item.serviceNotes,
+            image: item.attributes.immagine || null
           }))
         }
       };
-      console.log("Order Payload:", orderPayload);
 
-      // 2. Call Backend to Create Order & Stripe Session
       const response = await fetch(`${STRAPI_API_URL}/orders`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(orderPayload)
       });
 
-      console.log("Response Status:", response.status);
       const responseData = await response.json();
-      console.log("Response Data:", responseData);
 
       if (!response.ok) {
         throw new Error(responseData.error?.message || "Impossibile creare l'ordine");
       }
 
-      // 3. Redirect to Stripe
       if (responseData.url) {
-        console.log("Redirecting to Stripe:", responseData.url);
         window.location.href = responseData.url;
       } else {
-        console.warn("No Stripe URL returned, falling back to manual success");
-        // Fallback for manual orders (no stripe session returned)
         clearCart();
         navigate('/account');
       }
-
-    } catch (error) {
-      console.error("Order Error:", error);
-      alert("Si è verificato un errore: " + error);
+    } catch (error: any) {
+      setErrorMessage(error.message || "Si è verificato un errore durante il pagamento.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-nature-600"></div></div>;
-  if (!isAuthenticated) return null; // Will redirect via useEffect
+  // ── Input helper ──
+  const inputClass = (name: string) =>
+    `w-full px-4 py-3 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-nature-400 focus:border-transparent transition-all ${fieldErrors[name] ? 'border-red-300 bg-red-50/50' : 'border-stone-200 hover:border-stone-300'}`;
 
-  if (items.length === 0) {
+  // ══════════════ RENDER STATES ══════════════
+
+  // Loading
+  if (isLoading) {
     return (
       <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Il tuo carrello è vuoto</h2>
-            <Button onClick={() => navigate('/shop')}>Vai allo Shop</Button>
+        <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="animate-spin text-nature-600" size={40} />
+          <p className="text-stone-500 font-medium">Caricamento...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Layout>
+        <div className="min-h-[70vh] flex items-center justify-center px-4">
+          <div className="max-w-md w-full text-center">
+            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
+              <div className="bg-gradient-to-br from-nature-50 to-emerald-50 px-8 pt-10 pb-8">
+                <div className="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-4">
+                  <LogIn className="text-nature-600" size={32} />
+                </div>
+                <h2 className="font-display text-2xl font-bold text-stone-800">Accedi per continuare</h2>
+                <p className="text-stone-500 mt-2 text-sm">Effettua il login per completare il tuo acquisto</p>
+              </div>
+              <div className="px-8 pb-8 pt-6 space-y-3">
+                <Button className="w-full" onClick={() => navigate('/login')}>
+                  <span className="flex items-center justify-center gap-2">
+                    <LogIn size={18} /> Vai al Login
+                  </span>
+                </Button>
+                <button onClick={() => navigate('/shop')} className="text-sm text-stone-400 hover:text-nature-600 transition-colors font-medium">
+                  Torna al Negozio
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </Layout>
     );
   }
 
+  // Empty cart
+  if (items.length === 0) {
+    return (
+      <Layout>
+        <div className="min-h-[70vh] flex items-center justify-center px-4">
+          <div className="max-w-md w-full text-center">
+            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
+              <div className="bg-gradient-to-br from-stone-50 to-stone-100/50 px-8 pt-10 pb-8">
+                <div className="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-4">
+                  <ShoppingBag className="text-stone-400" size={32} />
+                </div>
+                <h2 className="font-display text-2xl font-bold text-stone-800">Carrello vuoto</h2>
+                <p className="text-stone-500 mt-2 text-sm">Aggiungi qualche prodotto al carrello prima di procedere</p>
+              </div>
+              <div className="px-8 pb-8 pt-6">
+                <Button className="w-full" onClick={() => navigate('/shop')}>
+                  <span className="flex items-center justify-center gap-2">
+                    <Store size={18} /> Vai al Negozio
+                  </span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ══════════════ MAIN CHECKOUT ══════════════
   return (
     <Layout>
-      <div className="bg-stone-50 min-h-screen py-12">
-        <div className="max-w-4xl mx-auto px-4">
-          <h1 className="font-display text-3xl font-bold mb-8 text-stone-800">Checkout</h1>
+      {/* Processing Overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 text-center max-w-xs mx-4">
+            <Loader2 className="animate-spin text-nature-600 mx-auto mb-4" size={40} />
+            <p className="font-bold text-stone-800">Reindirizzamento a Stripe...</p>
+            <p className="text-sm text-stone-500 mt-1">Non chiudere questa pagina</p>
+          </div>
+        </div>
+      )}
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="md:col-span-2 space-y-6">
+      <div className="bg-gradient-to-b from-nature-50/50 to-stone-50 min-h-screen">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-nature-50 to-emerald-50/30 border-b border-nature-100/50">
+          <div className="max-w-5xl mx-auto px-4 py-6">
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-sm text-stone-400 mb-3">
+              <Link to="/" className="hover:text-nature-600 transition-colors flex items-center gap-1">
+                <HomeIcon size={14} /> Home
+              </Link>
+              <ChevronRight size={14} />
+              <Link to="/shop" className="hover:text-nature-600 transition-colors">Negozio</Link>
+              <ChevronRight size={14} />
+              <span className="text-stone-700 font-semibold">Checkout</span>
+            </nav>
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-stone-800">Completa il tuo Ordine</h1>
+            <p className="text-stone-500 text-sm mt-1">
+              {items.length} articol{items.length === 1 ? 'o' : 'i'} nel carrello
+            </p>
+          </div>
+        </div>
 
-              {/* Section: Shipping Address (Conditional for Physical Items) */}
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          {/* Error Banner */}
+          {errorMessage && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+              <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <p className="font-bold text-red-800 text-sm">Errore nel pagamento</p>
+                <p className="text-red-600 text-sm mt-0.5">{errorMessage}</p>
+              </div>
+              <button onClick={() => setErrorMessage('')} className="text-red-400 hover:text-red-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Stepper */}
+          {hasPhysicalItems && (
+            <div className="flex items-center justify-center mb-8 max-w-md mx-auto">
+              {steps.map((step, i) => {
+                const Icon = step.icon;
+                const isCompleted = checkoutStep > step.num;
+                const isActive = checkoutStep === step.num;
+                const isPending = checkoutStep < step.num;
+                return (
+                  <React.Fragment key={step.num}>
+                    {i > 0 && (
+                      <div className={`h-0.5 flex-1 mx-1 rounded-full transition-all duration-500 ${isCompleted || isActive ? 'bg-nature-500' : 'bg-stone-200'}`} />
+                    )}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isCompleted ? 'bg-nature-600 text-white shadow-md shadow-nature-200' :
+                        isActive ? 'bg-nature-600 text-white shadow-lg shadow-nature-200 ring-4 ring-nature-100' :
+                        'bg-stone-100 text-stone-400'
+                      }`}>
+                        {isCompleted ? <Check size={18} /> : <Icon size={18} />}
+                      </div>
+                      <span className={`text-[11px] font-bold whitespace-nowrap ${isActive || isCompleted ? 'text-nature-700' : 'text-stone-400'}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+            {/* ═══ Left Column ═══ */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Card: Shipping Address */}
               {hasPhysicalItems && (
-                <div className={`p-6 rounded-2xl shadow-sm border transition-all ${hasAddress && !isEditingAddress ? 'bg-white border-stone-100' : 'bg-red-50 border-red-100'}`}>
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                    <MapPin className={hasAddress ? "text-nature-600" : "text-red-500"} />
-                    Informazioni di Spedizione
-                  </h3>
-
-                  {!hasAddress || isEditingAddress ? (
-                    <div className="space-y-4 animate-fade-in">
-                      {!hasAddress && <p className="text-sm text-red-600 font-semibold">Inserisci un indirizzo di spedizione per continuare.</p>}
-                      <div className="grid grid-cols-2 gap-4">
-                        <input
-                          type="text"
-                          placeholder="Indirizzo"
-                          className="col-span-2 p-3 bg-white border border-stone-200 rounded-lg"
-                          value={shippingDetails.address}
-                          onChange={(e) => setShippingDetails({ ...shippingDetails, address: e.target.value })}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Note (es. Scala, Piano, Campanello)"
-                          className="col-span-2 p-3 bg-white border border-stone-200 rounded-lg"
-                          value={shippingDetails.notes}
-                          onChange={(e) => setShippingDetails({ ...shippingDetails, notes: e.target.value })}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Città (es. Teramo)"
-                          className="p-3 bg-white border border-stone-200 rounded-lg"
-                          value={shippingDetails.city}
-                          onChange={(e) => setShippingDetails({ ...shippingDetails, city: e.target.value })}
-                        />
-                        <input
-                          type="text"
-                          placeholder="CAP (es. 64100)"
-                          className="p-3 bg-white border border-stone-200 rounded-lg"
-                          value={shippingDetails.zip}
-                          onChange={(e) => setShippingDetails({ ...shippingDetails, zip: e.target.value })}
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Telefono"
-                          className="col-span-2 p-3 bg-white border border-stone-200 rounded-lg"
-                          value={shippingDetails.phone}
-                          onChange={(e) => setShippingDetails({ ...shippingDetails, phone: e.target.value })}
-                        />
-                      </div>
-                      <Button onClick={handleSaveAddress} size="sm">Salva Indirizzo</Button>
+                <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${hasAddress && !isEditingAddress ? 'border-stone-100' : 'border-amber-200'}`}>
+                  <div className={`px-6 py-4 flex items-center gap-3 border-b ${hasAddress && !isEditingAddress ? 'bg-nature-50/50 border-nature-100/50' : 'bg-amber-50 border-amber-100'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasAddress && !isEditingAddress ? 'bg-nature-100 text-nature-600' : 'bg-amber-100 text-amber-600'}`}>
+                      <MapPin size={16} />
                     </div>
-                  ) : (
-                    <div className="flex justify-between items-start">
-                      <div className="text-sm text-stone-600">
-                        <p className="font-bold text-stone-800">{user?.nome_completo || user?.username}</p>
-                        <p>{user?.indirizzo}</p>
-                        {user?.note_indirizzo && <p className="text-stone-500 italic flex items-center gap-1"><FileText size={12} /> {user.note_indirizzo}</p>}
-                        <p>{user?.citta}, {user?.cap}</p>
-                        <p>{user?.telefono}</p>
-                      </div>
-                      <button
-                        onClick={() => setIsEditingAddress(true)}
-                        className="text-nature-600 text-sm font-bold hover:underline"
-                      >
-                        Modifica
-                      </button>
-                    </div>
-                  )}
+                    <h3 className="font-bold text-stone-800">Indirizzo di Spedizione</h3>
+                    {hasAddress && !isEditingAddress && (
+                      <span className="ml-auto text-xs bg-nature-100 text-nature-700 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+                        <CheckCircle size={12} /> Salvato
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Local Delivery Selection Checkbox */}
-                  {hasAddress && !isEditingAddress && canHaveLocalDelivery && (
-                    <div className="mt-6 pt-4 border-t border-stone-100 animate-fade-in">
-                      <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${wantsLocalDelivery ? 'bg-nature-50 border-nature-200' : 'bg-white border-stone-200 hover:border-nature-200'}`}>
-                        <div className="pt-0.5">
-                          <input
-                            type="checkbox"
-                            className="w-5 h-5 text-nature-600 rounded focus:ring-nature-500"
-                            checked={wantsLocalDelivery}
-                            onChange={(e) => setWantsLocalDelivery(e.target.checked)}
-                          />
+                  <div className="p-6">
+                    {!hasAddress || isEditingAddress ? (
+                      <div className="space-y-4 animate-fade-in">
+                        {!hasAddress && (
+                          <div className="flex items-start gap-2 bg-amber-50 text-amber-700 p-3 rounded-xl text-sm border border-amber-100">
+                            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                            <p>Inserisci un indirizzo di spedizione per continuare.</p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2">
+                            <input placeholder="Indirizzo *" className={inputClass('address')} value={shippingDetails.address} onChange={(e) => handleFieldChange('address', e.target.value)} />
+                            {fieldErrors.address && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.address}</p>}
+                          </div>
+                          <div className="col-span-2">
+                            <input placeholder="Note (es. Scala, Piano, Campanello)" className={inputClass('notes')} value={shippingDetails.notes} onChange={(e) => handleFieldChange('notes', e.target.value)} />
+                          </div>
+                          <div>
+                            <input placeholder="Citta *" className={inputClass('city')} value={shippingDetails.city} onChange={(e) => handleFieldChange('city', e.target.value)} />
+                            {fieldErrors.city && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.city}</p>}
+                          </div>
+                          <div>
+                            <input placeholder="CAP * (es. 64100)" inputMode="numeric" maxLength={5} className={inputClass('zip')} value={shippingDetails.zip} onChange={(e) => handleFieldChange('zip', e.target.value.replace(/\D/g, '').slice(0, 5))} />
+                            {fieldErrors.zip && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.zip}</p>}
+                          </div>
+                          <div className="col-span-2">
+                            <input type="tel" inputMode="tel" placeholder="Telefono (es. 333 1234567)" className={inputClass('phone')} value={shippingDetails.phone} onChange={(e) => handleFieldChange('phone', e.target.value)} />
+                            {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.phone}</p>}
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-bold text-nature-800 flex items-center gap-2">
-                            <Truck size={18} /> Richiedi Consegna a Domicilio
-                          </span>
-                          <p className="text-sm text-stone-600 mt-1">
-                            Poiché risiedi nella zona di Teramo, possiamo consegnare l'ordine direttamente a casa tua!
-                            <span className="text-nature-600 font-bold block mt-1">
-                              {isFreeShippingThreshold
-                                ? "Gratuita per questo ordine!"
-                                : "Costo agevolato: €4.99 (Gratis oltre €99)"
-                              }
+                        <div className="flex gap-3">
+                          <Button onClick={handleSaveAddress} disabled={Object.keys(fieldErrors).length > 0}>
+                            <span className="flex items-center gap-2">
+                              <Check size={16} /> Salva e Continua
                             </span>
-                          </p>
+                          </Button>
+                          {hasAddress && (
+                            <button onClick={() => setIsEditingAddress(false)} className="text-sm text-stone-400 hover:text-stone-600 font-medium transition-colors px-4">
+                              Annulla
+                            </button>
+                          )}
                         </div>
-                      </label>
-                    </div>
-                  )}
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-start">
+                        <div className="text-sm text-stone-600 space-y-0.5">
+                          <p className="font-bold text-stone-800 text-base">{user?.nome_completo || user?.username}</p>
+                          <p>{user?.indirizzo}</p>
+                          {user?.note_indirizzo && (
+                            <p className="text-stone-400 italic flex items-center gap-1"><FileText size={12} /> {user.note_indirizzo}</p>
+                          )}
+                          <p>{user?.citta}, {user?.cap}</p>
+                          {user?.telefono && <p>{user?.telefono}</p>}
+                        </div>
+                        <button
+                          onClick={() => setIsEditingAddress(true)}
+                          className="text-nature-600 text-sm font-bold hover:underline flex-shrink-0 ml-4"
+                        >
+                          Modifica
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Local Delivery */}
+                    {hasAddress && !isEditingAddress && canHaveLocalDelivery && (
+                      <div className="mt-5 pt-5 border-t border-stone-100 animate-fade-in">
+                        <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          wantsLocalDelivery ? 'bg-nature-50 border-nature-300 shadow-sm' : 'bg-white border-stone-200 hover:border-nature-200'
+                        }`}>
+                          <div className="pt-0.5">
+                            <input
+                              type="checkbox"
+                              className="w-5 h-5 text-nature-600 rounded focus:ring-nature-500"
+                              checked={wantsLocalDelivery}
+                              onChange={(e) => setWantsLocalDelivery(e.target.checked)}
+                            />
+                          </div>
+                          <div>
+                            <span className="font-bold text-nature-800 flex items-center gap-2">
+                              <Truck size={18} /> Consegna a Domicilio — Teramo
+                            </span>
+                            <p className="text-sm text-stone-500 mt-1">
+                              Consegna direttamente a casa tua nella zona di Teramo.
+                              <span className="text-nature-600 font-bold block mt-1">
+                                {isFreeShippingThreshold ? 'Gratuita per questo ordine!' : 'Costo agevolato: \u20ac4,99 (Gratis oltre \u20ac99)'}
+                              </span>
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Section: Review Items */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <Package className="text-nature-600" /> Articoli Ordine
-                </h3>
-
-                {physicalItems.map(item => (
-                  <div key={`${item.id}-${item.selectedVariant?.id}`} className="flex gap-4 items-center py-4 border-b border-stone-50 last:border-0">
-                    {/* Product Image Thumbnail */}
-                    <div className="w-16 h-16 bg-stone-50 rounded-xl border border-stone-100 flex-shrink-0 overflow-hidden">
-                      <img
-                        src={item.attributes.immagine}
-                        alt={item.attributes.nome}
-                        className="w-full h-full object-contain p-1"
-                      />
-                    </div>
-
-                    <div className="flex-1">
-                      <span className="text-stone-800 font-bold block">{item.attributes.nome}</span>
-                      {item.selectedVariant && (
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded inline-block mt-1">
-                          {item.selectedVariant.attributes.nome_variante}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-stone-400 mb-0.5">x{item.quantity}</div>
-                      <div className="font-semibold text-stone-800">€{((item.attributes.prezzo + (item.selectedVariant?.attributes.prezzo_aggiuntivo || 0)) * item.quantity).toFixed(2)}</div>
-                    </div>
+              {/* Card: Order Items */}
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+                <div className="px-6 py-4 flex items-center gap-3 border-b bg-stone-50/50 border-stone-100">
+                  <div className="w-8 h-8 rounded-full bg-nature-100 text-nature-600 flex items-center justify-center">
+                    <Package size={16} />
                   </div>
-                ))}
+                  <h3 className="font-bold text-stone-800">I tuoi Articoli</h3>
+                  <span className="ml-auto text-xs text-stone-400 font-medium">{items.length} articol{items.length === 1 ? 'o' : 'i'}</span>
+                </div>
 
+                <div className="divide-y divide-stone-50">
+                  {physicalItems.map(item => {
+                    const unitPrice = item.selectedVariant
+                      ? (item.selectedVariant.prezzo_scontato || item.selectedVariant.prezzo)
+                      : (item.attributes.prezzo_scontato || item.attributes.prezzo);
+                    const lineTotal = unitPrice * item.quantity;
+                    return (
+                      <div key={`${item.id}-${item.selectedVariant?.id}`} className="flex gap-4 items-center p-5 hover:bg-stone-50/50 transition-colors">
+                        <div className="w-20 h-20 bg-stone-50 rounded-xl border border-stone-100 flex-shrink-0 overflow-hidden">
+                          <img src={item.attributes.immagine} alt={item.attributes.nome} className="w-full h-full object-contain p-1.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-stone-800 font-bold text-sm line-clamp-2">{item.attributes.nome}</h4>
+                          {item.selectedVariant && (
+                            <span className="text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded mt-1 inline-block">
+                              {item.selectedVariant.nome_variante}
+                            </span>
+                          )}
+                          <p className="text-xs text-stone-400 mt-1">Quantita: {item.quantity}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="font-bold text-stone-800">{'\u20ac'}{lineTotal.toFixed(2)}</div>
+                          {item.quantity > 1 && (
+                            <p className="text-xs text-stone-400">{'\u20ac'}{unitPrice.toFixed(2)} cad.</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Services */}
                 {serviceItems.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-sm font-bold text-ocean-500 uppercase mb-2">Servizi da Prenotare</h4>
-                    {serviceItems.map(item => (
-                      <div key={item.id} className="bg-ocean-50 p-4 rounded-xl mb-3 border border-ocean-100">
-                        <div className="flex gap-4 mb-3">
-                          <div className="w-12 h-12 bg-white rounded-lg border border-ocean-100 flex-shrink-0 overflow-hidden">
-                            <img src={item.attributes.immagine} alt={item.attributes.nome} className="w-full h-full object-cover" />
+                  <div className="border-t border-stone-100 p-5">
+                    <h4 className="text-sm font-bold text-ocean-600 uppercase mb-3 flex items-center gap-2">
+                      <CalendarIcon size={14} /> Servizi da Prenotare
+                    </h4>
+                    <div className="space-y-3">
+                      {serviceItems.map(item => (
+                        <div key={item.id} className="bg-ocean-50/50 p-4 rounded-xl border border-ocean-100">
+                          <div className="flex gap-4 mb-3">
+                            <div className="w-14 h-14 bg-white rounded-xl border border-ocean-100 flex-shrink-0 overflow-hidden">
+                              <img src={item.attributes.immagine} alt={item.attributes.nome} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex justify-between font-bold text-ocean-900">
+                                <span>{item.attributes.nome}</span>
+                                <span>{'\u20ac'}{item.attributes.prezzo.toFixed(2)}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between font-semibold text-ocean-900">
-                              <span>{item.attributes.nome}</span>
-                              <span>€{item.attributes.prezzo.toFixed(2)}</span>
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-ocean-700 font-semibold block mb-1.5">Data Preferita</label>
+                              <input
+                                type="date"
+                                className="w-full px-3 py-2.5 rounded-xl border border-ocean-200 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-400"
+                                onChange={(e) => updateServiceDetails(item.id, e.target.value, item.serviceNotes || '')}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-ocean-700 font-semibold block mb-1.5">Note</label>
+                              <textarea
+                                className="w-full px-3 py-2.5 rounded-xl border border-ocean-200 text-sm h-[42px] resize-none focus:outline-none focus:ring-2 focus:ring-ocean-400"
+                                placeholder="Istruzioni specifiche..."
+                                onChange={(e) => updateServiceDetails(item.id, item.serviceDate || '', e.target.value)}
+                              />
                             </div>
                           </div>
                         </div>
-                        <div className="grid gap-3">
-                          <div>
-                            <label className="text-xs text-ocean-700 block mb-1">Data Preferita</label>
-                            <input
-                              type="date"
-                              className="w-full p-2 rounded border border-ocean-200 text-sm"
-                              onChange={(e) => updateServiceDetails(item.id, e.target.value, item.serviceNotes || '')}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-ocean-700 block mb-1">Note</label>
-                            <textarea
-                              className="w-full p-2 rounded border border-ocean-200 text-sm h-16"
-                              placeholder="Istruzioni specifiche..."
-                              onChange={(e) => updateServiceDetails(item.id, item.serviceDate || '', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Sidebar Total */}
-            <div className="md:col-span-1">
-              <div className="bg-white p-6 rounded-2xl shadow-lg sticky top-24 border border-stone-100">
-                <h3 className="font-bold text-xl mb-4">Riepilogo</h3>
-                <div className="space-y-2 mb-6 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">Totale Articoli</span>
-                    <span>€{total.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-stone-600">
-                      {wantsLocalDelivery ? 'Consegna a Domicilio' : 'Spedizione'}
-                    </span>
-                    <div className="text-right">
-                      {hasPhysicalItems ? (
-                        shippingCost === 0 ? (
-                          <span className="text-nature-600 font-bold flex items-center justify-end gap-1">
-                            {(wantsLocalDelivery || isFreeShippingThreshold) ? <Truck size={14} /> : null} Gratis
-                          </span>
-                        ) : (
-                          <span className="font-semibold">€{shippingCost.toFixed(2)}</span>
-                        )
-                      ) : (
-                        <span className="text-stone-400">N/A</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Local Delivery Note */}
-                  {wantsLocalDelivery && hasPhysicalItems && (
-                    <div className="text-xs bg-nature-50 text-nature-700 p-2 rounded mt-1 border border-nature-100">
-                      <strong>Consegna Locale Attiva</strong><br />
-                      Verrai contattato per l'orario.
-                    </div>
-                  )}
-
-                  {!wantsLocalDelivery && hasPhysicalItems && !isFreeShippingThreshold && (
-                    <div className="text-xs text-stone-400 mt-1 text-right">
-                      Spedizione gratuita oltre €99
-                    </div>
-                  )}
-
-                  <div className="border-t pt-4 mt-4 flex justify-between font-bold text-xl text-nature-800">
-                    <span>Totale</span>
-                    <span>€{finalTotal.toFixed(2)}</span>
-                  </div>
+            {/* ═══ Right Column — Summary Sidebar ═══ */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl shadow-lg sticky top-24 border border-stone-100 overflow-hidden">
+                {/* Sidebar Header */}
+                <div className="bg-gradient-to-br from-nature-50 to-emerald-50/50 px-6 py-4 border-b border-nature-100/50 flex items-center gap-3">
+                  <img src="/logo.png" alt="Birillo" className="w-8 h-8 rounded-full border border-nature-200" />
+                  <h3 className="font-display font-bold text-lg text-stone-800">Riepilogo</h3>
                 </div>
 
-                {!canProceed ? (
-                  <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm flex gap-2 items-start mb-4">
-                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                    <p>Salva il tuo indirizzo di spedizione per procedere al pagamento.</p>
-                  </div>
-                ) : (
-                  <Button
-                    className="w-full flex items-center justify-center gap-2 py-3"
-                    onClick={handlePayment}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? 'Reindirizzamento a Stripe...' : <><CreditCard size={18} /> Paga e Ordina</>}
-                  </Button>
-                )}
+                <div className="p-6">
+                  {/* Items Summary */}
+                  <div className="space-y-2 text-sm mb-4">
+                    <div className="flex justify-between text-stone-600">
+                      <span>Subtotale ({items.length} articol{items.length === 1 ? 'o' : 'i'})</span>
+                      <span className="font-semibold">{'\u20ac'}{total.toFixed(2)}</span>
+                    </div>
 
-                <p className="text-xs text-center text-stone-400 mt-4 flex items-center justify-center gap-1">
-                  <CheckCircle size={12} /> Checkout Sicuro via Stripe
-                </p>
+                    {totalSavings > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span className="flex items-center gap-1">Risparmi</span>
+                        <span className="font-bold">-{'\u20ac'}{totalSavings.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    {hasPhysicalItems && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-stone-600 flex items-center gap-1">
+                          {wantsLocalDelivery ? <><Truck size={14} /> Consegna</> : 'Spedizione'}
+                        </span>
+                        {shippingCost === 0 ? (
+                          <span className="text-nature-600 font-bold">Gratis</span>
+                        ) : (
+                          <span className="font-semibold">{'\u20ac'}{shippingCost.toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Free shipping threshold hint */}
+                    {hasPhysicalItems && !isFreeShippingThreshold && !wantsLocalDelivery && (
+                      <div className="text-xs text-stone-400 text-right">
+                        Spedizione gratuita oltre {'\u20ac'}99
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Divider + Total */}
+                  <div className="border-t border-stone-100 pt-4 mb-6">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-bold text-stone-700 text-base">Totale</span>
+                      <span className="font-display font-bold text-2xl text-nature-700">{'\u20ac'}{finalTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  {!canProceed ? (
+                    <div className="bg-amber-50 text-amber-700 p-3.5 rounded-xl text-sm flex gap-2.5 items-start border border-amber-100">
+                      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                      <p>Salva il tuo indirizzo di spedizione per procedere.</p>
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full py-3.5"
+                      onClick={handlePayment}
+                      disabled={isProcessing}
+                    >
+                      <span className="flex items-center justify-center gap-2 text-base">
+                        <CreditCard size={20} /> Paga e Ordina
+                      </span>
+                    </Button>
+                  )}
+
+                  {/* Security Badge */}
+                  <div className="mt-4 flex items-center justify-center gap-2 text-stone-400">
+                    <Shield size={14} />
+                    <span className="text-xs font-medium">Checkout sicuro via Stripe</span>
+                    <Lock size={12} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

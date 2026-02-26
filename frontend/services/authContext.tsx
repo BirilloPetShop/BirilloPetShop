@@ -12,6 +12,7 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
 }
 
@@ -167,6 +168,33 @@ export const AuthProvider = ({ children }: { children?: ReactNode }) => {
     }
   };
 
+  const refreshUser = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${STRAPI_API_URL}/users/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const freshUser: User = {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        nome_completo: data.nome_completo,
+        indirizzo: data.indirizzo,
+        note_indirizzo: data.note_indirizzo,
+        citta: data.citta,
+        cap: data.cap,
+        telefono: data.telefono,
+        created_at: data.createdAt
+      };
+      setUser(freshUser);
+      localStorage.setItem('aquapet_user', JSON.stringify(freshUser));
+    } catch (error) {
+      console.error("Refresh user error:", error);
+    }
+  };
+
   const forgotPassword = async (email: string) => {
     try {
       const response = await fetch(`${STRAPI_API_URL}/auth/forgot-password`, {
@@ -197,6 +225,7 @@ export const AuthProvider = ({ children }: { children?: ReactNode }) => {
       register,
       logout,
       updateProfile,
+      refreshUser,
       forgotPassword
     }}>
       {children}

@@ -1,18 +1,21 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Product } from '../types';
 import { useCart } from '../services/cartContext';
 import { useWishlist } from '../services/wishlistContext';
-import { Plus, Calendar, Heart, ChevronRight, Tag } from 'lucide-react';
-import { ProductModal } from './ProductModal';
+import { useToast } from '../services/toastContext';
+import { Plus, Calendar, Heart, ChevronRight, Tag, ShoppingBag } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { showToast } = useToast();
 
   // Defensive check
   if (!product || !product.attributes) {
@@ -20,13 +23,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   }
 
   const { nome, prezzo, prezzo_scontato, categoria, is_service, immagine, varianti } = product.attributes;
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [addedAnimation, setAddedAnimation] = useState(false);
 
   const isSaved = isInWishlist(product.id);
   const hasVariants = varianti && varianti.length > 0;
 
-  // Calculate Cheapest Variant (if applicable)
+  // Calculate Cheapest Variant
   const cheapestVariant = hasVariants ? [...varianti].sort((a, b) => {
     const priceA = (a.prezzo_scontato && a.prezzo_scontato < a.prezzo) ? a.prezzo_scontato : a.prezzo;
     const priceB = (b.prezzo_scontato && b.prezzo_scontato < b.prezzo) ? b.prezzo_scontato : b.prezzo;
@@ -46,26 +49,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     isItemOnSale = !!(prezzo_scontato && prezzo_scontato < prezzo);
   }
 
-  // Calculate discount percentage
   const discountPercent = isItemOnSale && displaySalePrice
     ? Math.round(((displayPrice - displaySalePrice) / displayPrice) * 100)
     : 0;
 
-  // Calculate Stock Status
-  // If has variants, check if ANY variant has stock
+  // Stock Status
   const totalStock = hasVariants
     ? varianti.reduce((acc, v) => acc + (v.stock || 0), 0)
     : (product.attributes.stock || 0);
 
   const isOutOfStock = !is_service && totalStock <= 0;
 
+  const goToProductPage = () => {
+    navigate(`/product/${product.id}`, { state: { product } });
+  };
+
   const handleAddClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hasVariants) {
-      setIsModalOpen(true);
+      goToProductPage();
     } else {
       addToCart(product, quantity);
-      setQuantity(1); // Reset quantity after adding
+      setQuantity(1);
+      // Animation + toast
+      setAddedAnimation(true);
+      setTimeout(() => setAddedAnimation(false), 600);
+      showToast(`${nome} aggiunto al carrello!`, 'success');
     }
   };
 
@@ -76,86 +85,103 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   return (
     <>
-      <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-stone-100 flex flex-col h-full relative">
+      <div className={`group bg-white rounded-xl transition-all duration-300 overflow-hidden border flex flex-col h-full relative min-w-0 ${is_service ? 'border-sky-100 hover:border-ocean-300' : 'border-stone-200 hover:border-nature-300'} hover:shadow-md`}>
+
+        {/* Top accent bar */}
+        <div className={`h-[3px] w-full ${is_service ? 'bg-ocean-400' : 'bg-nature-500'}`} />
 
         {/* Wishlist Button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             toggleWishlist(product.id);
+            showToast(
+              isSaved ? `${nome} rimosso dai preferiti` : `${nome} aggiunto ai preferiti!`,
+              isSaved ? 'info' : 'success'
+            );
           }}
-          className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm ${isSaved ? 'bg-white text-birillo-red ring-1 ring-red-100' : 'bg-black/20 text-white hover:bg-white hover:text-birillo-red backdrop-blur-sm'
+          className={`absolute top-2.5 right-2.5 z-10 w-9 h-9 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isSaved ? 'bg-white text-birillo-red shadow-sm ring-1 ring-red-100' : 'bg-white/80 text-stone-400 hover:text-birillo-red backdrop-blur-sm shadow-sm'
             }`}
           aria-label={isSaved ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
         >
-          <Heart size={18} fill={isSaved ? "currentColor" : "none"} />
+          <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
         </button>
 
-        {/* Sale Badge - Uses Birillo Red as accent */}
+        {/* Sale Badge */}
         {isItemOnSale && (
-          <div className="absolute top-3 left-3 z-10 bg-birillo-red text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md animate-fade-in">
+          <div className="absolute top-2.5 left-2.5 z-10 bg-birillo-red text-white text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm animate-fade-in">
             <Tag size={12} fill="currentColor" /> -{discountPercent}%
           </div>
         )}
 
-        <div className="relative h-52 overflow-hidden cursor-pointer bg-stone-50" onClick={() => setIsModalOpen(true)}>
-          <img
-            src={immagine}
-            alt={nome}
-            className="w-full h-full object-contain p-4 transform group-hover:scale-105 transition-transform duration-500"
-          />
-          {/* Service/Product Badge */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-3 pt-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${is_service ? 'bg-ocean-500 text-white border-ocean-400' : 'bg-nature-500 text-white border-nature-400'
-              }`}>
-              {is_service ? 'Servizio' : 'Prodotto'}
-            </span>
-          </div>
+        {/* Image */}
+        <div className="relative h-48 overflow-hidden cursor-pointer bg-stone-50/50" onClick={goToProductPage}>
+          {immagine ? (
+            <img
+              src={immagine}
+              alt={nome}
+              loading="lazy"
+              className="w-full h-full object-contain p-4 transform group-hover:scale-105 transition-transform duration-500"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-stone-300">
+              <ShoppingBag size={48} />
+            </div>
+          )}
+          {/* Added overlay */}
+          {addedAnimation && (
+            <div className="absolute inset-0 bg-nature-600/20 flex items-center justify-center animate-fade-in">
+              <div className="bg-white rounded-full p-3 shadow-lg animate-bounce-in">
+                <ShoppingBag size={24} className="text-nature-600" />
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="p-5 flex flex-col flex-grow">
-          <div className="text-xs text-stone-500 font-bold mb-1 uppercase tracking-wider">{categoria}</div>
+        <div className="p-3.5 md:p-4 flex flex-col flex-grow">
+          <span className="inline-block bg-stone-100 text-stone-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 w-fit">{categoria}</span>
           <h3
-            className="font-display font-bold text-lg text-stone-900 mb-2 leading-tight cursor-pointer hover:text-nature-600 transition-colors"
-            onClick={() => setIsModalOpen(true)}
+            className="font-display font-bold text-sm md:text-base text-stone-900 mb-2 leading-snug cursor-pointer hover:text-nature-600 transition-colors line-clamp-2"
+            onClick={goToProductPage}
           >
             {nome}
           </h3>
 
-          <div className="mt-auto pt-4 border-t border-stone-50">
-            <div className="flex items-center justify-between gap-2">
+          <div className="mt-auto pt-2.5 border-t border-stone-100">
+            <div className="flex items-end justify-between gap-2">
               <div className="flex flex-col">
                 {isItemOnSale ? (
                   <div className="flex flex-col items-start">
                     {hasVariants && <span className="text-[10px] text-stone-400 uppercase font-bold">A partire da</span>}
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-stone-400 line-through decoration-red-300 decoration-1">€{displayPrice.toFixed(2)}</span>
+                      <span className="text-xs text-stone-400 line-through">€{displayPrice.toFixed(2)}</span>
                       <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md">-{discountPercent}%</span>
                     </div>
-                    <span className="text-xl font-extrabold text-birillo-red">€{displaySalePrice!.toFixed(2)}</span>
+                    <span className="text-lg font-extrabold text-birillo-red">€{displaySalePrice!.toFixed(2)}</span>
                   </div>
                 ) : (
                   <div className="flex flex-col">
                     {hasVariants && <span className="text-[10px] text-stone-400 uppercase font-bold">A partire da</span>}
-                    <span className="text-xl font-extrabold text-nature-700">€{displayPrice.toFixed(2)}</span>
+                    <span className="text-lg font-extrabold text-nature-700">€{displayPrice.toFixed(2)}</span>
                   </div>
                 )}
                 {hasVariants && <span className="text-[10px] font-bold text-nature-600 uppercase bg-nature-50 px-1.5 py-0.5 rounded-sm w-fit mt-0.5">+ opzioni</span>}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {/* Inline Quantity Selector */}
                 {!is_service && !hasVariants && !isOutOfStock && (
-                  <div className="flex items-center bg-stone-100 rounded-full h-9 px-1 shadow-inner border border-stone-200" onClick={e => e.stopPropagation()}>
+                  <div className="hidden sm:flex items-center bg-stone-50 rounded-lg h-8 px-0.5 border border-stone-200" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={(e) => adjustQuantity(e, -1)}
-                      className="w-6 h-full flex items-center justify-center text-stone-500 hover:text-nature-600 font-bold disabled:opacity-30"
+                      className="w-6 h-full flex items-center justify-center text-stone-400 hover:text-nature-600 font-bold text-sm disabled:opacity-30"
                       disabled={quantity <= 1}
                     >-</button>
-                    <span className="w-4 text-center text-sm font-bold text-stone-800 select-none">{quantity}</span>
+                    <span className="w-5 text-center text-xs font-bold text-stone-700 select-none">{quantity}</span>
                     <button
                       onClick={(e) => adjustQuantity(e, 1)}
-                      className="w-6 h-full flex items-center justify-center text-stone-500 hover:text-nature-600 font-bold"
+                      className="w-6 h-full flex items-center justify-center text-stone-400 hover:text-nature-600 font-bold text-sm"
                       disabled={quantity >= (product.attributes.stock || 99)}
                     >+</button>
                   </div>
@@ -164,22 +190,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 <button
                   onClick={handleAddClick}
                   disabled={isOutOfStock}
-                  className={`h-10 rounded-full flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 
+                  className={`h-10 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-95
                     ${isOutOfStock
-                      ? 'bg-stone-300 text-stone-500 cursor-not-allowed px-4 w-auto'
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed px-3.5 w-auto'
                       : is_service
-                        ? 'w-10 bg-ocean-500 text-white hover:bg-ocean-600'
-                        : 'bg-nature-600 text-white hover:bg-nature-700'
-                    } ${hasVariants ? 'px-4 text-sm font-bold' : 'w-10'}
+                        ? 'w-10 bg-ocean-500 text-white hover:bg-ocean-600 shadow-sm hover:shadow-md'
+                        : 'bg-nature-600 text-white hover:bg-nature-700 shadow-sm hover:shadow-md'
+                    } ${hasVariants ? 'px-3.5 text-sm font-bold' : 'w-10'}
                   `}
                   aria-label="Aggiungi al carrello"
                 >
                   {isOutOfStock ? (
-                    <span className="text-xs font-bold uppercase">Esaurito</span>
+                    <span className="text-[11px] font-bold uppercase">Esaurito</span>
                   ) : hasVariants ? (
-                    <>Scegli <ChevronRight size={14} className="ml-1" /></>
+                    <>Scegli <ChevronRight size={14} className="ml-0.5" /></>
                   ) : (
-                    is_service ? <Calendar size={18} /> : <Plus size={22} strokeWidth={2.5} />
+                    is_service ? <Calendar size={16} /> : <Plus size={20} strokeWidth={2.5} />
                   )}
                 </button>
               </div>
@@ -188,12 +214,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
       </div>
 
-      {/* Product Details / Variant Selection Modal */}
-      <ProductModal
-        product={product}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
     </>
   );
 };

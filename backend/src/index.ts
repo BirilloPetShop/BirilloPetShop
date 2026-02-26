@@ -1,4 +1,6 @@
 import type { Core } from '@strapi/strapi';
+import { confirmationEmailHtml, confirmationEmailSubject } from './email-templates/confirmation';
+import { resetPasswordEmailHtml, resetPasswordEmailSubject } from './email-templates/reset-password';
 
 export default {
   /**
@@ -64,6 +66,43 @@ export default {
       }
     } catch (error) {
       console.error('Errore durante la creazione del prodotto test:', error);
+    }
+
+    // ══════ Override Email Templates ══════
+    try {
+      const pluginStore = strapi.store({
+        type: 'plugin',
+        name: 'users-permissions',
+      });
+
+      const currentEmailConfig = await pluginStore.get({ key: 'email' }) as Record<string, any> | null;
+
+      if (currentEmailConfig) {
+        // Override email confirmation template
+        if (currentEmailConfig.email_confirmation) {
+          currentEmailConfig.email_confirmation.options.object = confirmationEmailSubject;
+          currentEmailConfig.email_confirmation.options.message = confirmationEmailHtml;
+          currentEmailConfig.email_confirmation.options.from = {
+            name: 'Birillo Pet Shop',
+            email: process.env.SMTP_USERNAME || 'noreply@birillopetshop.it',
+          };
+        }
+
+        // Override reset password template
+        if (currentEmailConfig.reset_password) {
+          currentEmailConfig.reset_password.options.object = resetPasswordEmailSubject;
+          currentEmailConfig.reset_password.options.message = resetPasswordEmailHtml;
+          currentEmailConfig.reset_password.options.from = {
+            name: 'Birillo Pet Shop',
+            email: process.env.SMTP_USERNAME || 'noreply@birillopetshop.it',
+          };
+        }
+
+        await pluginStore.set({ key: 'email', value: currentEmailConfig });
+        console.log('Email templates personalizzati caricati con successo');
+      }
+    } catch (error) {
+      console.error('Errore durante il caricamento dei template email:', error);
     }
   },
 };

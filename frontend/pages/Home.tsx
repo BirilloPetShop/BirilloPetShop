@@ -1,17 +1,25 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
 import { useNavigate } from 'react-router-dom';
 import { fetchFeaturedProducts } from '../services/strapi';
 import { Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
-import { ArrowRight, CheckCircle, Loader2, Truck, MapPin } from 'lucide-react';
+import { SkeletonCard } from '../components/Skeleton';
+import {
+  ArrowRight, CheckCircle, ChevronLeft, ChevronRight,
+  Dog, Cat, Fish, ShoppingBag, Star, Check, MapPin,
+  Phone, Mail, MessageCircle, Droplets, HeartHandshake
+} from 'lucide-react';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
 
   useEffect(() => {
     const loadFeatured = async () => {
@@ -22,25 +30,57 @@ export const Home: React.FC = () => {
     loadFeatured();
   }, []);
 
+  const updateScrollButtons = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  };
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const scrollAmount = el.clientWidth * 0.75;
+    el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    setTimeout(updateScrollButtons, 400);
+  };
+
+  const categories = [
+    { name: 'Cani', desc: 'Cibo, accessori e giochi', icon: Dog, bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-600', hover: 'hover:border-amber-200 hover:shadow-lg hover:-translate-y-1', filter: 'Cani' },
+    { name: 'Gatti', desc: 'Nutrizione e comfort felino', icon: Cat, bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-600', hover: 'hover:border-purple-200 hover:shadow-lg hover:-translate-y-1', filter: 'Gatti' },
+    { name: 'Pesci & Acquari', desc: 'Acquari, mangimi e accessori', icon: Fish, bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-600', hover: 'hover:border-sky-200 hover:shadow-lg hover:-translate-y-1', filter: 'Pesci' },
+    { name: 'Tutti i Prodotti', desc: 'Esplora il catalogo completo', icon: ShoppingBag, bg: 'bg-nature-50', border: 'border-nature-100', text: 'text-nature-600', hover: 'hover:border-nature-200 hover:shadow-lg hover:-translate-y-1', filter: '' },
+  ];
+
+
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative bg-nature-50 pt-16 pb-24 overflow-hidden">
+      {/* ══════ 1. HERO ══════ */}
+      <section className="relative bg-gradient-to-br from-nature-50 via-emerald-50/30 to-white pt-12 md:pt-16 pb-16 md:pb-24 overflow-hidden">
+        {/* Decorative blobs */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-nature-200/20 rounded-full blur-3xl -mr-48 -mt-48 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-sky-200/15 rounded-full blur-3xl -ml-24 -mb-24 pointer-events-none"></div>
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-              <span className="inline-block px-4 py-1 bg-white text-nature-700 rounded-full text-sm font-bold tracking-wide shadow-sm">
-                📍 Il Tuo Pet Shop di Fiducia
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+            {/* Left column */}
+            <div className="space-y-5 md:space-y-6 text-center md:text-left">
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/80 text-nature-700 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm backdrop-blur-sm">
+                <img src="/logo.png" alt="" className="w-5 h-5 rounded-full" /> Il Tuo Pet Shop di Fiducia
               </span>
+
               <h1 className="font-display text-3xl md:text-5xl font-bold text-stone-900 leading-tight">
-                Solo il Meglio per i tuoi <br />
+                Solo il Meglio per i tuoi{' '}
+                <br className="hidden md:block" />
                 <span className="text-nature-600">Amici Animali</span>
               </h1>
-              <p className="text-lg text-stone-600 leading-relaxed">
+
+              <p className="text-base md:text-lg text-stone-600 leading-relaxed max-w-md mx-auto md:mx-0">
                 Dalla nutrizione premium alle installazioni personalizzate di acquari.
                 Combiniamo prodotti e servizi per garantire il benessere dei tuoi animali.
               </p>
-              <div className="flex gap-4 pt-4">
+
+              <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 justify-center md:justify-start">
                 <Button size="lg" onClick={() => navigate('/shop')}>
                   Acquista Ora
                 </Button>
@@ -48,21 +88,32 @@ export const Home: React.FC = () => {
                   I Nostri Servizi
                 </Button>
               </div>
+
+              {/* Trust micro-text */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start text-xs text-stone-500 pt-1">
+                <span className="flex items-center gap-1"><Star size={12} className="text-amber-400" /> 20+ anni di esperienza</span>
+                <span className="flex items-center gap-1"><HeartHandshake size={12} className="text-nature-500" /> Assistenza personalizzata</span>
+                <span className="flex items-center gap-1"><CheckCircle size={12} className="text-nature-500" /> Qualità garantita</span>
+              </div>
             </div>
-            <div className="relative">
+
+            {/* Right column — hero image */}
+            <div className="relative hidden md:block">
               <div className="absolute inset-0 bg-nature-200 rounded-full filter blur-3xl opacity-30 transform translate-y-8"></div>
               <img
                 src="/hero-dog.png"
                 alt="Golden Retriever felice"
                 className="relative rounded-3xl shadow-2xl transform md:rotate-2 hover:rotate-0 transition-transform duration-500 border-4 border-white"
+                loading="lazy"
               />
-              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-lg flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-full text-green-600">
-                  <CheckCircle size={24} />
+              {/* Floating trust card */}
+              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-lg flex items-center gap-3 animate-fade-in">
+                <div className="bg-nature-100 p-2.5 rounded-full text-nature-600">
+                  <MapPin size={22} />
                 </div>
                 <div>
-                  <p className="font-bold text-stone-800">Esperti del Settore</p>
-                  <p className="text-xs text-stone-500">Da oltre 20 anni</p>
+                  <p className="font-bold text-stone-800 text-sm">Negozio Fisico</p>
+                  <p className="text-xs text-stone-500">Vieni a trovarci a Teramo</p>
                 </div>
               </div>
             </div>
@@ -70,62 +121,89 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Local Delivery Feature Banner */}
-      <section className="bg-white py-8 border-y border-stone-100">
+      {/* ══════ 2. CATEGORIE ══════ */}
+      <section className="py-12 md:py-16 bg-stone-50">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="bg-nature-600 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between text-white shadow-xl shadow-nature-100">
-            <div className="flex items-start gap-4 mb-6 md:mb-0">
-              <div className="bg-white/20 p-3 rounded-xl">
-                <Truck size={32} />
-              </div>
-              <div>
-                <h3 className="font-display text-2xl font-bold mb-1">Vivi in Provincia di Teramo?</h3>
-                <p className="text-nature-100 max-w-md">
-                  Offriamo un'esclusiva <span className="font-bold text-white">Consegna Diretta a Domicilio</span> per i clienti locali.
-                  Veloce, sicura e gestita personalmente dal nostro team.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 bg-nature-700/50 px-6 py-3 rounded-xl border border-nature-500/30">
-              <MapPin size={20} className="text-nature-300" />
-              <div className="text-sm">
-                <span className="block font-bold">Aree di Consegna:</span>
-                <span className="text-nature-200">Teramo Città, Giulianova, Roseto...</span>
-              </div>
-            </div>
+          <div className="text-center mb-8 md:mb-10">
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-stone-900">
+              Esplora per Animale
+            </h2>
+            <p className="text-stone-500 mt-2 text-sm md:text-base">Trova tutto ciò di cui hanno bisogno i tuoi amici.</p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+            {categories.map(cat => (
+              <button
+                key={cat.name}
+                onClick={() => navigate(cat.filter ? `/shop?filter=${cat.filter}` : '/shop')}
+                className={`${cat.bg} ${cat.border} ${cat.hover} border-2 p-5 md:p-7 rounded-2xl flex flex-col items-center gap-3 transition-all duration-300 group`}
+              >
+                <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center ${cat.text} bg-white/70 shadow-sm group-hover:scale-110 transition-transform`}>
+                  <cat.icon size={30} strokeWidth={1.8} />
+                </div>
+                <div className="text-center">
+                  <span className={`font-bold text-sm md:text-base block ${cat.text}`}>{cat.name}</span>
+                  <span className="text-xs text-stone-500 hidden md:block mt-0.5">{cat.desc}</span>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Featured Products */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-end mb-10">
+      {/* ══════ 4. PRODOTTI IN EVIDENZA ══════ */}
+      <section className="py-14 md:py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-between items-end mb-8 md:mb-10">
             <div>
-              <h2 className="font-display text-3xl font-bold text-stone-900">Articoli in Evidenza</h2>
-              <p className="text-stone-500 mt-2">Essenziali selezionati per i tuoi animali.</p>
+              <h2 className="font-display text-2xl md:text-3xl font-bold text-stone-900">Articoli in Evidenza</h2>
+              <p className="text-stone-500 mt-1 md:mt-2 text-sm md:text-base">Essenziali selezionati per i tuoi animali.</p>
             </div>
-            <Button variant="outline" onClick={() => navigate('/shop')} className="hidden md:flex">
-              Vedi Tutti <ArrowRight size={16} />
-            </Button>
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={() => scrollCarousel('left')}
+                disabled={!canScrollLeft}
+                className="p-2.5 rounded-full bg-white border border-stone-200 hover:bg-nature-50 hover:border-nature-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="Scorri a sinistra"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                onClick={() => scrollCarousel('right')}
+                disabled={!canScrollRight}
+                className="p-2.5 rounded-full bg-white border border-stone-200 hover:bg-nature-50 hover:border-nature-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="Scorri a destra"
+              >
+                <ChevronRight size={20} />
+              </button>
+              <Button variant="outline" onClick={() => navigate('/shop')} className="ml-2">
+                Vedi Tutti <ArrowRight size={16} />
+              </Button>
+            </div>
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="animate-spin text-nature-600" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8">
+              <div
+                ref={carouselRef}
+                onScroll={updateScrollButtons}
+                className="flex gap-4 md:gap-6 overflow-x-auto snap-x snap-mandatory pb-4 -mx-4 px-4 scrollbar-hide"
+              >
                 {featuredProducts.map(p => (
-                  <ProductCard key={p.id} product={p} />
+                  <div key={p.id} className="w-[70%] sm:w-[45%] md:w-[30%] lg:w-[23%] snap-start flex-shrink-0 min-w-0">
+                    <ProductCard product={p} />
+                  </div>
                 ))}
               </div>
 
-              {/* Mobile 'See All' Button */}
-              <div className="mt-8 md:hidden flex justify-center">
+              {/* Mobile 'See All' */}
+              <div className="mt-6 md:hidden flex justify-center">
                 <Button variant="outline" onClick={() => navigate('/shop')} className="w-full justify-center">
-                  Vedi Tutti <ArrowRight size={16} />
+                  Vedi Tutti i Prodotti <ArrowRight size={16} />
                 </Button>
               </div>
             </>
@@ -133,37 +211,111 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Services Banner */}
-      <section className="py-24 bg-stone-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0">
-          {/* High quality Aquascape image from Unsplash */}
-          <img
-            src="https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=1600&q=80"
-            alt="Acquario professionale piantumato"
-            className="w-full h-full object-cover opacity-40"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-900/90 to-stone-900/40"></div>
-        </div>
+      {/* ══════ 5. SERVIZI ACQUARIOFILIA ══════ */}
+      <section className="py-14 md:py-20 bg-stone-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+            {/* Image */}
+            <div className="relative rounded-2xl overflow-hidden shadow-xl">
+              <img
+                src="/aquarium-bg.png"
+                alt="Acquario professionale piantumato"
+                className="w-full h-64 md:h-96 object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-stone-900/40 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className="bg-ocean-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                  Servizi Professionali
+                </span>
+              </div>
+            </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight">
-            Servizi Professionali per Acquari
-          </h2>
-          <p className="text-stone-200 max-w-2xl mx-auto mb-10 text-lg md:text-xl leading-relaxed font-light">
-            Non vendiamo solo vasche; creiamo <span className="font-semibold text-white">ecosistemi</span>.
-            Prenota una consulenza per un'installazione personalizzata
-            o iscriviti ai nostri piani di manutenzione mensile senza pensieri.
-          </p>
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={() => navigate('/services')}
-            className="mx-auto !shadow-none"
-          >
-            Scopri i Servizi
-          </Button>
+            {/* Content */}
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-ocean-50 text-ocean-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                <Droplets size={14} /> Dipartimento Acquariofilia
+              </div>
+
+              <h2 className="font-display text-2xl md:text-3xl font-bold text-stone-900 leading-tight">
+                Acquariofilia Professionale su Misura
+              </h2>
+
+              <p className="text-stone-600 leading-relaxed">
+                Non vendiamo solo vasche: creiamo ecosistemi. Dalla progettazione alla manutenzione mensile,
+                il nostro team segue ogni fase del tuo acquario.
+              </p>
+
+              <ul className="space-y-3">
+                {[
+                  'Installazione acquari personalizzata',
+                  'Manutenzione mensile programmata',
+                  'Controllo parametri acqua',
+                  'Avviamento biologico professionale',
+                ].map(item => (
+                  <li key={item} className="flex items-start gap-3 text-sm text-stone-700">
+                    <div className="w-5 h-5 rounded-full bg-ocean-100 text-ocean-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Button variant="secondary" size="lg" onClick={() => navigate('/services')}>
+                Scopri i Servizi <ArrowRight size={18} />
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
-    </Layout >
+
+      {/* ══════ 6. CTA CONTATTO ══════ */}
+      <section className="max-w-7xl mx-auto px-4 pb-16 md:pb-24 pt-4 md:pt-8">
+        <div className="bg-stone-900 rounded-3xl overflow-hidden relative">
+          <div className="absolute inset-0">
+            <img
+              src="https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?auto=format&fit=crop&w=1600&q=80"
+              alt=""
+              className="w-full h-full object-cover opacity-20"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/85 to-stone-900/70"></div>
+          </div>
+
+          <div className="relative z-10 p-8 md:p-12 lg:p-14 text-center">
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-white mb-3">
+              Hai Bisogno di Aiuto?
+            </h2>
+            <p className="text-stone-400 max-w-md mx-auto mb-8 text-sm md:text-base leading-relaxed">
+              Contattaci senza impegno per qualsiasi informazione, consiglio o preventivo.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <a
+                href="https://wa.me/390861210515"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white font-bold px-5 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <MessageCircle size={18} /> WhatsApp
+              </a>
+              <a
+                href="tel:0861210515"
+                className="flex items-center gap-2.5 bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl border border-white/20 backdrop-blur-sm transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <Phone size={18} /> 0861 210515
+              </a>
+              <a
+                href="mailto:birillopetshop@hotmail.it"
+                className="flex items-center gap-2.5 bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl border border-white/20 backdrop-blur-sm transition-all active:scale-95 w-full sm:w-auto justify-center text-sm"
+              >
+                <Mail size={18} /> Email
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </Layout>
   );
 };

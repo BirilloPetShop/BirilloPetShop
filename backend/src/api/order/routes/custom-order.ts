@@ -5,8 +5,16 @@ export default {
             path: '/orders/webhook',
             handler: 'order.webhook',
             config: {
-                auth: false, // Public access, signature verification handles security
+                auth: false,
                 middlewares: [],
+            },
+        },
+        {
+            method: 'POST',
+            path: '/orders/verify-payment',
+            handler: 'order.verifyPayment',
+            config: {
+                policies: [],
             },
         },
     ],

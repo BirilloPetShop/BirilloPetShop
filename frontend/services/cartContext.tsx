@@ -6,9 +6,11 @@ interface CartContextType {
   items: CartItem[];
   addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
   removeFromCart: (productId: number, variantId?: number) => void;
+  updateQuantity: (productId: number, variantId: number | undefined, newQuantity: number) => void;
   updateServiceDetails: (productId: number, date: string, notes: string) => void;
   clearCart: () => void;
   total: number;
+  totalSavings: number;
   itemCount: number;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
@@ -75,6 +77,21 @@ export const CartProvider = ({ children }: { children?: ReactNode }) => {
     }));
   }, []);
 
+  const updateQuantity = useCallback((productId: number, variantId: number | undefined, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeFromCart(productId, variantId);
+      return;
+    }
+    setItems(prev => prev.map(item => {
+      const sameProduct = item.id === productId;
+      const sameVariant = item.selectedVariant?.id === variantId;
+      if (sameProduct && sameVariant) {
+        return { ...item, quantity: newQuantity };
+      }
+      return item;
+    }));
+  }, [removeFromCart]);
+
   const updateServiceDetails = useCallback((productId: number, date: string, notes: string) => {
     setItems(prev => prev.map(item =>
       item.id === productId ? { ...item, serviceDate: date, serviceNotes: notes } : item
@@ -85,18 +102,33 @@ export const CartProvider = ({ children }: { children?: ReactNode }) => {
 
   // Calculate Total handling Discounts
   const total = items.reduce((sum, item) => {
-    // Logic: Use discounted price if available, otherwise normal price
-    const productPrice = item.attributes.prezzo_scontato || item.attributes.prezzo;
-    const extraPrice = item.selectedVariant?.attributes.prezzo_aggiuntivo || 0;
-    return sum + ((productPrice + extraPrice) * item.quantity);
+    let price: number;
+    if (item.selectedVariant) {
+      price = item.selectedVariant.prezzo_scontato || item.selectedVariant.prezzo;
+    } else {
+      price = item.attributes.prezzo_scontato || item.attributes.prezzo;
+    }
+    return sum + (price * item.quantity);
+  }, 0);
+
+  // Calculate Total Savings
+  const totalSavings = items.reduce((sum, item) => {
+    if (item.selectedVariant) {
+      if (item.selectedVariant.prezzo_scontato && item.selectedVariant.prezzo_scontato < item.selectedVariant.prezzo) {
+        return sum + ((item.selectedVariant.prezzo - item.selectedVariant.prezzo_scontato) * item.quantity);
+      }
+    } else if (item.attributes.prezzo_scontato && item.attributes.prezzo_scontato < item.attributes.prezzo) {
+      return sum + ((item.attributes.prezzo - item.attributes.prezzo_scontato) * item.quantity);
+    }
+    return sum;
   }, 0);
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <CartContext.Provider value={{
-      items, addToCart, removeFromCart, updateServiceDetails, clearCart,
-      total, itemCount, isCartOpen, setIsCartOpen
+      items, addToCart, removeFromCart, updateQuantity, updateServiceDetails, clearCart,
+      total, totalSavings, itemCount, isCartOpen, setIsCartOpen
     }}>
       {children}
     </CartContext.Provider>
