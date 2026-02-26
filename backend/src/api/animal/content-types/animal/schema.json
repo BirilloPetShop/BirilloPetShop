@@ -14,11 +14,20 @@
     "nome": {
       "type": "string"
     },
+    "icona": {
+      "type": "string"
+    },
     "products": {
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::product.product",
       "mappedBy": "animals"
+    },
+    "categories": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::category.category",
+      "mappedBy": "animal"
     }
   }
 }

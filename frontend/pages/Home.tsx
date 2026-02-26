@@ -10,7 +10,8 @@ import { SkeletonCard } from '../components/Skeleton';
 import {
   ArrowRight, CheckCircle, ChevronLeft, ChevronRight,
   Dog, Cat, Fish, ShoppingBag, Star, Check, MapPin,
-  Phone, Mail, MessageCircle, Droplets, HeartHandshake
+  Phone, Mail, MessageCircle, Droplets, HeartHandshake,
+  Rabbit, Bird, Turtle, Squirrel
 } from 'lucide-react';
 
 export const Home: React.FC = () => {
@@ -45,11 +46,14 @@ export const Home: React.FC = () => {
     setTimeout(updateScrollButtons, 400);
   };
 
-  const categories = [
+  const animalCategories = [
     { name: 'Cani', desc: 'Cibo, accessori e giochi', icon: Dog, bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-600', hover: 'hover:border-amber-200 hover:shadow-lg hover:-translate-y-1', filter: 'Cani' },
     { name: 'Gatti', desc: 'Nutrizione e comfort felino', icon: Cat, bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-600', hover: 'hover:border-purple-200 hover:shadow-lg hover:-translate-y-1', filter: 'Gatti' },
-    { name: 'Pesci & Acquari', desc: 'Acquari, mangimi e accessori', icon: Fish, bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-600', hover: 'hover:border-sky-200 hover:shadow-lg hover:-translate-y-1', filter: 'Pesci' },
-    { name: 'Tutti i Prodotti', desc: 'Esplora il catalogo completo', icon: ShoppingBag, bg: 'bg-nature-50', border: 'border-nature-100', text: 'text-nature-600', hover: 'hover:border-nature-200 hover:shadow-lg hover:-translate-y-1', filter: '' },
+    { name: 'Roditori', desc: 'Conigli, criceti e porcellini', icon: Rabbit, bg: 'bg-orange-50', border: 'border-orange-100', text: 'text-orange-600', hover: 'hover:border-orange-200 hover:shadow-lg hover:-translate-y-1', filter: 'Roditori' },
+    { name: 'Uccelli', desc: 'Alimenti, gabbie e accessori', icon: Bird, bg: 'bg-teal-50', border: 'border-teal-100', text: 'text-teal-600', hover: 'hover:border-teal-200 hover:shadow-lg hover:-translate-y-1', filter: 'Uccelli' },
+    { name: 'Pesci', desc: 'Acquari, mangimi e accessori', icon: Fish, bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-600', hover: 'hover:border-sky-200 hover:shadow-lg hover:-translate-y-1', filter: 'Pesci' },
+    { name: 'Tartarughe', desc: 'Mangimi, accessori e cure', icon: Turtle, bg: 'bg-lime-50', border: 'border-lime-100', text: 'text-lime-600', hover: 'hover:border-lime-200 hover:shadow-lg hover:-translate-y-1', filter: 'Tartarughe' },
+    { name: 'Rettili', desc: 'Terrari, alimenti e integratori', icon: Squirrel, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600', hover: 'hover:border-emerald-200 hover:shadow-lg hover:-translate-y-1', filter: 'Rettili' },
   ];
 
 
@@ -131,19 +135,19 @@ export const Home: React.FC = () => {
             <p className="text-stone-500 mt-2 text-sm md:text-base">Trova tutto ciò di cui hanno bisogno i tuoi amici.</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
-            {categories.map(cat => (
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
+            {animalCategories.map(cat => (
               <button
                 key={cat.name}
-                onClick={() => navigate(cat.filter ? `/shop?animale=${cat.filter}` : '/shop')}
-                className={`${cat.bg} ${cat.border} ${cat.hover} border-2 p-5 md:p-7 rounded-2xl flex flex-col items-center gap-3 transition-all duration-300 group`}
+                onClick={() => navigate(`/shop?animale=${cat.filter}`)}
+                className={`${cat.bg} ${cat.border} ${cat.hover} border-2 p-4 md:p-5 rounded-2xl flex flex-col items-center gap-2.5 transition-all duration-300 group`}
               >
-                <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center ${cat.text} bg-white/70 shadow-sm group-hover:scale-110 transition-transform`}>
-                  <cat.icon size={30} strokeWidth={1.8} />
+                <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center ${cat.text} bg-white/70 shadow-sm group-hover:scale-110 transition-transform`}>
+                  <cat.icon size={26} strokeWidth={1.8} />
                 </div>
                 <div className="text-center">
-                  <span className={`font-bold text-sm md:text-base block ${cat.text}`}>{cat.name}</span>
-                  <span className="text-xs text-stone-500 hidden md:block mt-0.5">{cat.desc}</span>
+                  <span className={`font-bold text-xs md:text-sm block ${cat.text}`}>{cat.name}</span>
+                  <span className="text-[10px] text-stone-500 hidden lg:block mt-0.5 leading-tight">{cat.desc}</span>
                 </div>
               </button>
             ))}

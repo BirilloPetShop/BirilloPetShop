@@ -195,6 +195,16 @@ export const ProductPage: React.FC = () => {
           <button onClick={() => navigate('/shop')} className="hover:text-nature-600 transition-colors flex-shrink-0">
             Negozio
           </button>
+          {/* Animal breadcrumb segment */}
+          {attr.animali && attr.animali.length > 0 && attr.animali[0] !== 'Tutti' && (
+            <>
+              <ChevronRightSmall size={14} className="flex-shrink-0" />
+              <button onClick={() => navigate(`/shop?animale=${encodeURIComponent(attr.animali[0])}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
+                {attr.animali[0]}
+              </button>
+            </>
+          )}
+          {/* Category breadcrumb segments */}
           {(() => {
             // Build hierarchical breadcrumb from categoriaObj
             const chain: CategoryData[] = [];
@@ -204,18 +214,13 @@ export const ProductPage: React.FC = () => {
               current = current.parent;
             }
             if (chain.length > 0) {
-              return chain.map((cat, idx) => (
+              const animalName = attr.animali?.[0] || '';
+              return chain.map((cat) => (
                 <React.Fragment key={cat.id}>
                   <ChevronRightSmall size={14} className="flex-shrink-0" />
-                  {idx < chain.length - 1 ? (
-                    <button onClick={() => navigate(`/shop?categoria=${encodeURIComponent(cat.nome)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
-                      {cat.nome}
-                    </button>
-                  ) : (
-                    <button onClick={() => navigate(`/shop?categoria=${encodeURIComponent(cat.nome)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
-                      {cat.nome}
-                    </button>
-                  )}
+                  <button onClick={() => navigate(`/shop?animale=${encodeURIComponent(animalName)}&categoria=${encodeURIComponent(cat.nome)}`)} className="hover:text-nature-600 transition-colors flex-shrink-0">
+                    {cat.nome}
+                  </button>
                 </React.Fragment>
               ));
             }

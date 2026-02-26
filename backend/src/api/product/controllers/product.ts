@@ -15,6 +15,7 @@ const deepPopulate = {
           parent: true,
         },
       },
+      animal: true,
     },
   },
   animals: true,

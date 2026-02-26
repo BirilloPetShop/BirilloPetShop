@@ -2,14 +2,21 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Layout } from '../components/Layout';
 import { ProductCard } from '../components/ProductCard';
 import { SkeletonGrid } from '../components/Skeleton';
-import { fetchProducts, fetchCategories, fetchAnimals, fetchBrands, fetchCategoryTree } from '../services/strapi';
-import { Product, CategoryTreeNode } from '../types';
+import { fetchProducts, fetchCategories, fetchAnimalsInfo, fetchBrands, fetchCategoryTree } from '../services/strapi';
+import { Product, CategoryTreeNode, AnimalInfo } from '../types';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, X, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
   SlidersHorizontal, ArrowUpDown, Home, LayoutGrid, Grid3x3, Grid2x2,
-  PackageSearch, Tag
+  PackageSearch, Tag, Dog, Cat, Rabbit, Bird, Fish, Turtle, Squirrel,
+  type LucideIcon
 } from 'lucide-react';
+
+// Mappa icone Lucide per animali
+const animalIconMap: Record<string, LucideIcon> = {
+  'Dog': Dog, 'Cat': Cat, 'Rabbit': Rabbit, 'Bird': Bird,
+  'Fish': Fish, 'Turtle': Turtle, 'Squirrel': Squirrel,
+};
 
 // ─── Constants ───
 const PRODUCTS_PER_PAGE = 24;
@@ -66,7 +73,7 @@ const ShopContent: React.FC = () => {
   // Data
   const [products, setProducts] = useState<Product[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
-  const [animalsList, setAnimalsList] = useState<string[]>([]);
+  const [animalsList, setAnimalsList] = useState<AnimalInfo[]>([]);
   const [brandsList, setBrandsList] = useState<string[]>([]);
   const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +108,7 @@ const ShopContent: React.FC = () => {
         const [p, c, a, b, tree] = await Promise.all([
           fetchProducts().catch(() => []),
           fetchCategories().catch(() => []),
-          fetchAnimals().catch(() => []),
+          fetchAnimalsInfo().catch(() => []),
           fetchBrands().catch(() => []),
           fetchCategoryTree().catch(() => []),
         ]);
@@ -146,6 +153,18 @@ const ShopContent: React.FC = () => {
 
   // ─── Reset page on filter change ───
   useEffect(() => { setCurrentPage(1); }, [activeCategory, activeAnimal, activeBrand, searchQuery, sortBy, priceMin, priceMax, onSaleOnly]);
+
+  // ─── Category tree filtered by active animal ───
+  const filteredCategoryTree = useMemo(() => {
+    if (activeAnimal === 'All') return categoryTree;
+    return categoryTree.filter(node => node.animalNome === activeAnimal);
+  }, [categoryTree, activeAnimal]);
+
+  // ─── Helper: change animal and reset category ───
+  const handleAnimalChange = useCallback((animalName: string) => {
+    setActiveAnimal(animalName);
+    setActiveCategory('All'); // reset category when changing animal
+  }, []);
 
   // ─── Filtering + Sorting ───
   const filteredProducts = useMemo(() => {
@@ -275,36 +294,50 @@ const ShopContent: React.FC = () => {
   // ─── Sidebar Content (shared desktop + mobile) ───
   const SidebarContent = () => (
     <div className="space-y-1">
-      {/* Categorie */}
-      <button onClick={() => toggleSection('categorie')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
-        Categorie
-        <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.categorie ? '' : 'rotate-180'}`} />
-      </button>
-      {!collapsedSections.categorie && (
-        <div className="space-y-0.5 pb-4">
-          <SidebarFilterItem label="Tutti i Prodotti" isActive={activeCategory === 'All'} onClick={() => setActiveCategory('All')} />
-          {categoryTree.length > 0 ? (
-            renderCategoryTree(categoryTree)
-          ) : (
-            categoriesList.map(cat => (
-              <SidebarFilterItem key={cat} label={cat} isActive={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
-            ))
-          )}
-        </div>
-      )}
-      <div className="border-b border-stone-100" />
-
-      {/* Animale */}
+      {/* ANIMALE (prima sezione — animal-first navigation) */}
       <button onClick={() => toggleSection('animale')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
         Animale
         <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.animale ? '' : 'rotate-180'}`} />
       </button>
       {!collapsedSections.animale && (
         <div className="space-y-0.5 pb-4">
-          <SidebarFilterItem label="Tutti" isActive={activeAnimal === 'All'} onClick={() => setActiveAnimal('All')} />
-          {animalsList.map(a => (
-            <SidebarFilterItem key={a} label={a} isActive={activeAnimal === a} onClick={() => setActiveAnimal(a)} />
-          ))}
+          <SidebarFilterItem label="Tutti gli animali" isActive={activeAnimal === 'All'} onClick={() => handleAnimalChange('All')} />
+          {animalsList.map(a => {
+            const IconComp = a.icona ? animalIconMap[a.icona] : undefined;
+            return (
+              <button
+                key={a.id}
+                onClick={() => handleAnimalChange(a.nome)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200 flex items-center gap-2 ${
+                  activeAnimal === a.nome ? 'bg-nature-50 text-nature-700 font-bold border-l-2 border-nature-600' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+                }`}
+              >
+                {IconComp && <IconComp size={16} className="flex-shrink-0" />}
+                {a.nome}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="border-b border-stone-100" />
+
+      {/* CATEGORIE (filtrate per animale selezionato) */}
+      <button onClick={() => toggleSection('categorie')} className="flex items-center justify-between w-full py-3 text-xs font-bold text-stone-800 uppercase tracking-wider">
+        Categorie {activeAnimal !== 'All' && <span className="text-nature-500 normal-case text-[10px] ml-1">({activeAnimal})</span>}
+        <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${collapsedSections.categorie ? '' : 'rotate-180'}`} />
+      </button>
+      {!collapsedSections.categorie && (
+        <div className="space-y-0.5 pb-4">
+          <SidebarFilterItem label="Tutte le categorie" isActive={activeCategory === 'All'} onClick={() => setActiveCategory('All')} />
+          {filteredCategoryTree.length > 0 ? (
+            renderCategoryTree(filteredCategoryTree)
+          ) : activeAnimal !== 'All' ? (
+            <p className="text-xs text-stone-400 px-3 py-2 italic">Nessuna categoria per {activeAnimal}</p>
+          ) : (
+            categoriesList.map(cat => (
+              <SidebarFilterItem key={cat} label={cat} isActive={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
+            ))
+          )}
         </div>
       )}
       <div className="border-b border-stone-100" />
@@ -403,11 +436,25 @@ const ShopContent: React.FC = () => {
             <Home size={14} /> <span className="hidden sm:inline">Home</span>
           </button>
           <ChevronRight size={14} />
-          {activeCategory !== 'All' ? (
+          {activeAnimal !== 'All' || activeCategory !== 'All' ? (
             <>
-              <button onClick={() => setActiveCategory('All')} className="hover:text-nature-600 transition-colors">Negozio</button>
-              <ChevronRight size={14} />
-              <span className="text-stone-700 font-semibold">{activeCategory}</span>
+              <button onClick={clearAllFilters} className="hover:text-nature-600 transition-colors">Negozio</button>
+              {activeAnimal !== 'All' && (
+                <>
+                  <ChevronRight size={14} />
+                  {activeCategory !== 'All' ? (
+                    <button onClick={() => setActiveCategory('All')} className="hover:text-nature-600 transition-colors">{activeAnimal}</button>
+                  ) : (
+                    <span className="text-stone-700 font-semibold">{activeAnimal}</span>
+                  )}
+                </>
+              )}
+              {activeCategory !== 'All' && (
+                <>
+                  <ChevronRight size={14} />
+                  <span className="text-stone-700 font-semibold">{activeCategory}</span>
+                </>
+              )}
             </>
           ) : (
             <span className="text-stone-700 font-semibold">Negozio</span>
@@ -453,7 +500,7 @@ const ShopContent: React.FC = () => {
         {hasActiveFilters && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
             {activeCategory !== 'All' && <FilterChip label={`Categoria: ${activeCategory}`} onRemove={() => setActiveCategory('All')} />}
-            {activeAnimal !== 'All' && <FilterChip label={`Animale: ${activeAnimal}`} onRemove={() => setActiveAnimal('All')} />}
+            {activeAnimal !== 'All' && <FilterChip label={`Animale: ${activeAnimal}`} onRemove={() => handleAnimalChange('All')} />}
             {activeBrand !== 'All' && <FilterChip label={`Marca: ${activeBrand}`} onRemove={() => setActiveBrand('All')} />}
             {priceMin && <FilterChip label={`Min: €${priceMin}`} onRemove={() => setPriceMin('')} />}
             {priceMax && <FilterChip label={`Max: €${priceMax}`} onRemove={() => setPriceMax('')} />}

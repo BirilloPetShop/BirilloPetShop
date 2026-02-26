@@ -1,5 +1,5 @@
 
-import { Product, CategoryData, CategoryTreeNode, BrandData, VariantType } from '../types';
+import { Product, CategoryData, CategoryTreeNode, BrandData, VariantType, AnimalInfo } from '../types';
 import { STRAPI_API_URL } from '../constants';
 
 const STRAPI_BASE = import.meta.env.VITE_API_URL || 'http://localhost:1337';
@@ -46,12 +46,20 @@ const getGalleryUrls = (galleryData: any): string[] => {
   });
 };
 
-// Helper: Build category chain from Strapi data
+// Helper: Build category chain from Strapi data (con animale)
 const buildCategoryChain = (cat: any): CategoryData => {
   const result: CategoryData = {
     id: cat.id,
     nome: cat.nome || cat.attributes?.nome || '',
   };
+  // Animal associato alla categoria
+  if (cat.animal) {
+    const a = cat.animal.data ? cat.animal.data : cat.animal;
+    if (a && a.id) {
+      result.animalId = a.id;
+      result.animalNome = a.nome || a.attributes?.nome;
+    }
+  }
   if (cat.parent) {
     const p = cat.parent.data ? cat.parent.data : cat.parent;
     if (p && p.id) {
@@ -262,18 +270,23 @@ export const fetchCategories = async (): Promise<string[]> => {
   }
 };
 
-// Albero categorie gerarchico per la sidebar
+// Albero categorie gerarchico per la sidebar (con animale)
 export const fetchCategoryTree = async (): Promise<CategoryTreeNode[]> => {
   try {
-    const response = await fetch(`${STRAPI_API_URL}/categories?populate=*`);
+    const response = await fetch(`${STRAPI_API_URL}/categories?populate=parent,animal&pagination[limit]=100`);
     const json = await response.json();
 
-    const all = json.data.map((c: any) => ({
-      id: c.id || c.data?.id,
-      nome: c.nome || c.attributes?.nome,
-      parentId: c.parent?.id || c.parent?.data?.id || null,
-      children: [] as CategoryTreeNode[],
-    }));
+    const all = json.data.map((c: any) => {
+      const animal = c.animal?.data ? c.animal.data : c.animal;
+      return {
+        id: c.id || c.data?.id,
+        nome: c.nome || c.attributes?.nome,
+        parentId: c.parent?.id || c.parent?.data?.id || null,
+        animalId: animal?.id || null,
+        animalNome: animal?.nome || animal?.attributes?.nome || null,
+        children: [] as CategoryTreeNode[],
+      };
+    });
 
     // Build tree from flat list
     const map = new Map<number, any>();
@@ -295,6 +308,7 @@ export const fetchCategoryTree = async (): Promise<CategoryTreeNode[]> => {
   }
 };
 
+// Fetch animals come semplice lista nomi (backward compat)
 export const fetchAnimals = async (): Promise<string[]> => {
   try {
     const response = await fetch(`${STRAPI_API_URL}/animals`);
@@ -302,6 +316,22 @@ export const fetchAnimals = async (): Promise<string[]> => {
     return json.data.map((a: any) => a.nome || a.attributes?.nome);
   } catch (e) {
     console.warn("Animali Strapi non trovati");
+    return [];
+  }
+};
+
+// Fetch animals con info complete (id, nome, icona)
+export const fetchAnimalsInfo = async (): Promise<AnimalInfo[]> => {
+  try {
+    const response = await fetch(`${STRAPI_API_URL}/animals?pagination[limit]=20`);
+    const json = await response.json();
+    return json.data.map((a: any) => ({
+      id: a.id || a.data?.id,
+      nome: a.nome || a.attributes?.nome || '',
+      icona: a.icona || a.attributes?.icona || undefined,
+    }));
+  } catch (e) {
+    console.warn("Animali info non trovati");
     return [];
   }
 };

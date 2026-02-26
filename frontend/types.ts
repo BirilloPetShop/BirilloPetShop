@@ -15,12 +15,14 @@ export interface BrandData {
   logo?: string;
 }
 
-// Category Interface (con gerarchia)
+// Category Interface (con gerarchia + animale)
 export interface CategoryData {
   id: number;
   nome: string;
   parent?: CategoryData | null;
   children?: CategoryData[];
+  animalId?: number;
+  animalNome?: string;
 }
 
 // Category Tree Node (per sidebar negozio)
@@ -28,15 +30,24 @@ export interface CategoryTreeNode {
   id: number;
   nome: string;
   children: CategoryTreeNode[];
+  animalId?: number;
+  animalNome?: string;
 }
 
-// Animal Interface
+// Animal Interface (legacy)
 export interface AnimalData {
   id: number;
   attributes: {
     nome: string;
     slug?: string;
   }
+}
+
+// Animal Info (nuovo — con icona)
+export interface AnimalInfo {
+  id: number;
+  nome: string;
+  icona?: string;
 }
 
 // Variant Types
