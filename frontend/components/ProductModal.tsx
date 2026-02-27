@@ -58,18 +58,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onC
   const basePrice = product.attributes.prezzo;
   const salePrice = product.attributes.prezzo_scontato;
 
-  // Immagini dinamiche: se la variante ha un'immagine, mostrarla come prima
+  // Immagini dinamiche: se la variante ha un'immagine, sostituisce quella principale del prodotto
   const allImages = useMemo(() => {
-    const productImages = [
-      product.attributes.immagine,
-      ...(product.attributes.galleria || [])
-    ].filter(Boolean);
+    const galleria = (product.attributes.galleria || []).filter(Boolean);
     if (selectedVariant?.immagine) {
-      const variantImg = selectedVariant.immagine;
-      const otherImages = productImages.filter(img => img !== variantImg);
-      return [variantImg, ...otherImages];
+      // Variante con immagine propria: usa quella al posto dell'immagine prodotto
+      return [selectedVariant.immagine, ...galleria];
     }
-    return productImages;
+    return [product.attributes.immagine, ...galleria].filter(Boolean);
   }, [product.attributes.immagine, product.attributes.galleria, selectedVariant]);
 
   // Use Sale price if exists, otherwise base

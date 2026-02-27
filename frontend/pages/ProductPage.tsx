@@ -129,16 +129,14 @@ export const ProductPage: React.FC = () => {
   const basePrice = attr.prezzo;
   const salePrice = attr.prezzo_scontato;
 
-  // Immagini dinamiche: se la variante ha un'immagine, mostrarla come prima
+  // Immagini dinamiche: se la variante ha un'immagine, sostituisce quella principale del prodotto
   const allImages = useMemo(() => {
-    const productImages = [attr.immagine, ...(attr.galleria || [])].filter(Boolean);
+    const galleria = (attr.galleria || []).filter(Boolean);
     if (selectedVariant?.immagine) {
-      // Variante con immagine: mettila come prima, poi le altre del prodotto (senza duplicati)
-      const variantImg = selectedVariant.immagine;
-      const otherImages = productImages.filter(img => img !== variantImg);
-      return [variantImg, ...otherImages];
+      // Variante con immagine propria: usa quella al posto dell'immagine prodotto
+      return [selectedVariant.immagine, ...galleria];
     }
-    return productImages;
+    return [attr.immagine, ...galleria].filter(Boolean);
   }, [attr.immagine, attr.galleria, selectedVariant]);
 
   const effectiveBasePrice = salePrice || basePrice;
